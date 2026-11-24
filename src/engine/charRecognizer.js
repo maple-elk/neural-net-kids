@@ -738,15 +738,211 @@ const LETTER_PROTOTYPES = {
 };
 
 /**
- * Module-level cache of compiled base prototypes per charset so repeated
- * createCharRecognizer() calls are instant (<0.1ms).
+ * 12 interpretable hidden feature-detector neuron definitions.
+ */
+const HIDDEN_NEURON_DEFS = [
+  { id: 'topBar', label: 'Top Bar', shortLabel: 'Top Bar', description: 'Detects a horizontal stroke across the top edge (like 7, 5, T, E, Z).' },
+  { id: 'midBar', label: 'Middle Bar', shortLabel: 'Mid Bar', description: 'Detects a horizontal bar through the middle (like 4, 8, A, E, H).' },
+  { id: 'bottomBar', label: 'Bottom Bar', shortLabel: 'Bot Bar', description: 'Detects a flat base along the bottom edge (like 2, E, L, Z).' },
+  { id: 'leftStem', label: 'Left Stem', shortLabel: 'L-Stem', description: 'Detects a vertical wall on the left side (like B, D, E, F, H, L, P).' },
+  { id: 'rightStem', label: 'Right Stem', shortLabel: 'R-Stem', description: 'Detects a vertical stroke on the right side (like 4, 9, H, M, N, U).' },
+  { id: 'diagSlash', label: 'Diagonal /', shortLabel: 'Diag /', description: 'Detects a forward-slanted diagonal from top-right to bottom-left (like 7, 2, Z, X).' },
+  { id: 'diagBackslash', label: 'Diagonal \\', shortLabel: 'Diag \\', description: 'Detects a backward-slanted diagonal from top-left to bottom-right (like N, X, K, R).' },
+  { id: 'centerInk', label: 'Center Ink', shortLabel: 'Center', description: 'Detects ink passing right through the center (like 1, 3, 8, X, H, S).' },
+  { id: 'topLoop', label: 'Top Loop', shortLabel: 'Top O', description: 'Detects a curved loop or arch in the upper half (like 0, 8, 9, B, O, P, R).' },
+  { id: 'bottomLoop', label: 'Bottom Loop', shortLabel: 'Bot O', description: 'Detects a curved loop or bowl in the lower half (like 0, 6, 8, B, O, U).' },
+  { id: 'hEdges', label: 'Horizontal Edges', shortLabel: 'H-Edges', description: 'Measures overall horizontal edge energy across the drawing.' },
+  { id: 'vEdges', label: 'Vertical Edges', shortLabel: 'V-Edges', description: 'Measures overall vertical edge energy across the drawing.' },
+];
+
+/**
+ * Receptive-field edges connecting the 16 pooled input zones (0..15)
+ * to the 12 hidden feature-detector neurons (0..11).
+ */
+const INPUT_TO_HIDDEN_SPEC = [
+  // 0: Top Bar
+  [0, 0, 0.85], [1, 0, 0.95], [2, 0, 0.95], [3, 0, 0.85],
+  // 1: Mid Bar
+  [4, 1, 0.7], [5, 1, 0.95], [6, 1, 0.95], [7, 1, 0.7],
+  // 2: Bottom Bar
+  [12, 2, 0.85], [13, 2, 0.95], [14, 2, 0.95], [15, 2, 0.85],
+  // 3: Left Stem
+  [0, 3, 0.85], [4, 3, 0.95], [8, 3, 0.95], [12, 3, 0.85],
+  // 4: Right Stem
+  [3, 4, 0.85], [7, 4, 0.95], [11, 4, 0.95], [15, 4, 0.85],
+  // 5: Diag /
+  [3, 5, 0.9], [6, 5, 0.95], [9, 5, 0.95], [12, 5, 0.9],
+  // 6: Diag \
+  [0, 6, 0.9], [5, 6, 0.95], [10, 6, 0.95], [15, 6, 0.9],
+  // 7: Center Ink
+  [5, 7, 0.9], [6, 7, 0.9], [9, 7, 0.9], [10, 7, 0.9],
+  // 8: Top Loop
+  [1, 8, 0.8], [2, 8, 0.8], [4, 8, 0.75], [7, 8, 0.75],
+  // 9: Bottom Loop
+  [8, 9, 0.75], [11, 9, 0.75], [13, 9, 0.8], [14, 9, 0.8],
+  // 10: H-Edges
+  [1, 10, 0.65], [2, 10, 0.65], [13, 10, 0.65], [14, 10, 0.65],
+  // 11: V-Edges
+  [4, 11, 0.65], [7, 11, 0.65], [8, 11, 0.65], [11, 11, 0.65],
+];
+
+/**
+ * Clamp a number to [0, 1].
+ */
+function clamp01(v) {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+/**
+ * Compute mean ink in a rectangular region [y0..y1] x [x0..x1] of a 16x16 grid.
+ */
+function regionMean(grid, y0, y1, x0, x1) {
+  let sum = 0;
+  let count = 0;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      sum += grid[y][x];
+      count += 1;
+    }
+  }
+  return count > 0 ? sum / count : 0;
+}
+
+/**
+ * Compute the 16 pooled input zone activations (4x4 average pooling of 16x16 grid).
+ * @param {number[][]} grid16
+ * @returns {Array<{ id: number, row: number, col: number, activation: number }>}
+ */
+function computeInputNodes(grid16) {
+  const nodes = [];
+  for (let row = 0; row < 4; row++) {
+    for (let col = 0; col < 4; col++) {
+      const avg = regionMean(grid16, row * 4, row * 4 + 3, col * 4, col * 4 + 3);
+      nodes.push({
+        id: row * 4 + col,
+        row,
+        col,
+        activation: Number(clamp01(avg * 1.9).toFixed(3)),
+      });
+    }
+  }
+  return nodes;
+}
+
+/**
+ * Compute the 12 interpretable hidden neuron activations (0..1) from a 16x16 grid.
+ * @param {number[][]} grid16
+ * @returns {number[]}
+ */
+function computeHiddenActivations(grid16) {
+  // Region ink cues
+  const topInk = regionMean(grid16, 1, 4, 3, 12);
+  const midInk = regionMean(grid16, 6, 9, 3, 12);
+  const botInk = regionMean(grid16, 11, 14, 3, 12);
+  const leftInk = regionMean(grid16, 2, 13, 2, 6);
+  const rightInk = regionMean(grid16, 2, 13, 9, 13);
+  const centerInkRaw = regionMean(grid16, 5, 10, 5, 10);
+
+  // Diagonal bands (width 3 pixels around main & anti-diagonal)
+  let slashSum = 0;
+  let slashCount = 0;
+  let backslashSum = 0;
+  let backslashCount = 0;
+  for (let y = 2; y <= 13; y++) {
+    for (let x = 2; x <= 13; x++) {
+      if (Math.abs(x + y - 15) <= 1) {
+        slashSum += grid16[y][x];
+        slashCount += 1;
+      }
+      if (Math.abs(x - y) <= 1) {
+        backslashSum += grid16[y][x];
+        backslashCount += 1;
+      }
+    }
+  }
+  const slashInk = slashCount > 0 ? slashSum / slashCount : 0;
+  const backslashInk = backslashCount > 0 ? backslashSum / backslashCount : 0;
+
+  // Directional Sobel edge energies
+  let hEnergy = 0;
+  let vEnergy = 0;
+  let diagSlashEnergy = 0;
+  let diagBackEnergy = 0;
+  let topHEnergy = 0;
+  let midHEnergy = 0;
+  let botHEnergy = 0;
+
+  for (let y = 1; y < GRID_SIZE - 1; y++) {
+    for (let x = 1; x < GRID_SIZE - 1; x++) {
+      const gx =
+        -grid16[y - 1][x - 1] + grid16[y - 1][x + 1] +
+        -2 * grid16[y][x - 1] + 2 * grid16[y][x + 1] +
+        -grid16[y + 1][x - 1] + grid16[y + 1][x + 1];
+      const gy =
+        -grid16[y - 1][x - 1] - 2 * grid16[y - 1][x] - grid16[y - 1][x + 1] +
+        grid16[y + 1][x - 1] + 2 * grid16[y + 1][x] + grid16[y + 1][x + 1];
+      const absX = Math.abs(gx);
+      const absY = Math.abs(gy);
+
+      vEnergy += absX;
+      hEnergy += absY;
+      if (y <= 5) topHEnergy += absY;
+      else if (y <= 10) midHEnergy += absY;
+      else botHEnergy += absY;
+
+      // Edges perpendicular to '/' have gx and gy of same sign; perpendicular to '\' have opposite sign
+      if (gx * gy > 0) diagSlashEnergy += Math.min(absX, absY);
+      if (gx * gy < 0) diagBackEnergy += Math.min(absX, absY);
+    }
+  }
+
+  const totalEdge = Math.max(1e-5, hEnergy + vEnergy);
+
+  // Top & bottom loop detectors: strong perimeter ink around upper/lower half with lower interior fill
+  const topPerimeter =
+    (regionMean(grid16, 1, 3, 4, 11) +
+      regionMean(grid16, 3, 7, 2, 5) +
+      regionMean(grid16, 3, 7, 10, 13)) / 3;
+  const topHollow = 1 - Math.min(1, regionMean(grid16, 3, 6, 6, 9) * 1.15);
+
+  const botPerimeter =
+    (regionMean(grid16, 12, 14, 4, 11) +
+      regionMean(grid16, 8, 12, 2, 5) +
+      regionMean(grid16, 8, 12, 10, 13)) / 3;
+  const botHollow = 1 - Math.min(1, regionMean(grid16, 9, 12, 6, 9) * 1.15);
+
+  const raw = [
+    clamp01(topInk * 1.65 + (topHEnergy / totalEdge) * 0.65),
+    clamp01(midInk * 1.65 + (midHEnergy / totalEdge) * 0.55),
+    clamp01(botInk * 1.65 + (botHEnergy / totalEdge) * 0.65),
+    clamp01(leftInk * 2.2),
+    clamp01(rightInk * 2.2),
+    clamp01(slashInk * 1.55 + (diagSlashEnergy / totalEdge) * 1.25),
+    clamp01(backslashInk * 1.55 + (diagBackEnergy / totalEdge) * 1.25),
+    clamp01(centerInkRaw * 2.1),
+    clamp01(topPerimeter * 2.1 * (0.45 + 0.55 * topHollow)),
+    clamp01(botPerimeter * 2.1 * (0.45 + 0.55 * botHollow)),
+    clamp01((hEnergy / totalEdge) * 1.45),
+    clamp01((vEnergy / totalEdge) * 1.45),
+  ];
+
+  return raw.map((v) => Number(v.toFixed(3)));
+}
+
+/**
+ * Module-level cache of compiled base prototypes & class hidden-feature weights per charset
+ * so repeated createCharRecognizer() calls are instant (<0.1ms).
  */
 const prototypeCache = new Map();
 
 /**
- * Compile multi-style + slight slant variations for every character in the charset.
+ * Compile multi-style + slight slant variations for every character in the charset,
+ * along with normalized hidden-to-output class weights for networkTrace visualization.
  * @param {'digits'|'letters'} charset
- * @returns {Array<{ char: string, features: Float32Array, boost: number }>}
+ * @returns {{
+ *   prototypes: Array<{ char: string, features: Float32Array, boost: number }>,
+ *   classHiddenWeights: Map<string, number[]>
+ * }}
  */
 function getBasePrototypes(charset) {
   if (prototypeCache.has(charset)) {
@@ -755,23 +951,51 @@ function getBasePrototypes(charset) {
 
   const defMap = charset === 'letters' ? LETTER_PROTOTYPES : DIGIT_PROTOTYPES;
   const chars = CHARSETS[charset] || DIGITS;
-  const compiled = [];
+  const prototypes = [];
   const shears = [-0.14, 0, 0.14];
+  const classHiddenMeans = new Map();
+  const globalMean = new Array(HIDDEN_NEURON_DEFS.length).fill(0);
 
   for (const char of chars) {
     const styles = defMap[char] || [];
+    const sumHidden = new Array(HIDDEN_NEURON_DEFS.length).fill(0);
+    let protoCount = 0;
+
     for (const strokes of styles) {
       for (const shear of shears) {
         const raw = rasterizeStrokes(strokes, 28, 2.0, shear);
         const { normalizedGrid, bbox } = preprocessDrawing(raw);
         const features = extractFeatures(normalizedGrid, bbox);
-        compiled.push({ char, features, boost: 0 });
+        prototypes.push({ char, features, boost: 0 });
+
+        const hActs = computeHiddenActivations(normalizedGrid);
+        for (let h = 0; h < hActs.length; h++) {
+          sumHidden[h] += hActs[h];
+        }
+        protoCount += 1;
       }
+    }
+
+    const avgHidden = sumHidden.map((v) => (protoCount > 0 ? v / protoCount : 0));
+    classHiddenMeans.set(char, avgHidden);
+    for (let h = 0; h < avgHidden.length; h++) {
+      globalMean[h] += avgHidden[h] / chars.length;
     }
   }
 
-  prototypeCache.set(charset, compiled);
-  return compiled;
+  // Convert per-class hidden profiles into centered weights in [-1, 1]
+  const classHiddenWeights = new Map();
+  for (const char of chars) {
+    const profile = classHiddenMeans.get(char);
+    const diffs = profile.map((v, h) => v - globalMean[h]);
+    const maxAbs = Math.max(0.15, ...diffs.map((d) => Math.abs(d)));
+    const weights = diffs.map((d) => Number(Math.max(-1, Math.min(1, d / maxAbs)).toFixed(3)));
+    classHiddenWeights.set(char, weights);
+  }
+
+  const entry = { prototypes, classHiddenWeights };
+  prototypeCache.set(charset, entry);
+  return entry;
 }
 
 /**
@@ -815,8 +1039,80 @@ export function renderSampleChar(char, size = 48) {
 export function createCharRecognizer(charset = 'digits') {
   const safeCharset = charset === 'letters' ? 'letters' : 'digits';
   const characters = CHARSETS[safeCharset];
-  const basePrototypes = getBasePrototypes(safeCharset);
+  const { prototypes: basePrototypes, classHiddenWeights } = getBasePrototypes(safeCharset);
   let customPrototypes = [];
+
+  function buildNetworkTrace(normalizedGrid, probByChar, sortedScored, winnerChar, hasInk) {
+    const inputNodes = hasInk
+      ? computeInputNodes(normalizedGrid)
+      : Array.from({ length: 16 }, (_, id) => ({
+          id,
+          row: Math.floor(id / 4),
+          col: id % 4,
+          activation: 0,
+        }));
+
+    const hiddenActVals = hasInk
+      ? computeHiddenActivations(normalizedGrid)
+      : new Array(HIDDEN_NEURON_DEFS.length).fill(0);
+
+    const hiddenNodes = HIDDEN_NEURON_DEFS.map((def, idx) => ({
+      ...def,
+      activation: hiddenActVals[idx],
+    }));
+
+    const outputChars =
+      safeCharset === 'digits'
+        ? DIGITS
+        : hasInk
+          ? sortedScored.slice(0, 10).map((item) => item.char)
+          : LETTERS.slice(0, 10);
+
+    const outputNodes = outputChars.map((char) => ({
+      char,
+      prob: hasInk ? Number((probByChar.get(char) || 0).toFixed(4)) : 0,
+      isWinner: hasInk && char === winnerChar,
+    }));
+
+    const inputToHiddenEdges = INPUT_TO_HIDDEN_SPEC.map(([from, to, weight]) => {
+      const sig = inputNodes[from].activation * weight;
+      return {
+        from,
+        to,
+        weight,
+        signal: Number((sig === 0 ? 0 : sig).toFixed(3)),
+      };
+    });
+
+    const hiddenToOutputEdges = [];
+    for (let oIdx = 0; oIdx < outputNodes.length; oIdx++) {
+      const char = outputNodes[oIdx].char;
+      const weights = classHiddenWeights.get(char) || new Array(HIDDEN_NEURON_DEFS.length).fill(0);
+      // Keep top 4 strongest-magnitude connections per output class (~40 crisp edges total)
+      const ranked = weights
+        .map((weight, hIdx) => ({ hIdx, weight }))
+        .sort((a, b) => Math.abs(b.weight) - Math.abs(a.weight))
+        .slice(0, 4);
+
+      for (const { hIdx, weight } of ranked) {
+        const sig = hiddenNodes[hIdx].activation * weight;
+        hiddenToOutputEdges.push({
+          from: hIdx,
+          to: oIdx,
+          weight,
+          signal: Number((sig === 0 ? 0 : sig).toFixed(3)),
+        });
+      }
+    }
+
+    return {
+      inputNodes,
+      hiddenNodes,
+      outputNodes,
+      inputToHiddenEdges,
+      hiddenToOutputEdges,
+    };
+  }
 
   function recognize(rawGridOrImageData, width, height) {
     const { normalizedGrid, hasInk, bbox } = preprocessDrawing(
@@ -832,6 +1128,7 @@ export function createCharRecognizer(charset = 'digits') {
         topK: [],
         normalizedGrid,
         hasInk: false,
+        networkTrace: buildNetworkTrace(normalizedGrid, new Map(), [], null, false),
       };
     }
 
@@ -876,17 +1173,26 @@ export function createCharRecognizer(charset = 'digits') {
 
     scored.sort((a, b) => b.score - a.score || a.char.localeCompare(b.char));
 
+    const probByChar = new Map();
+    for (const item of scored) {
+      probByChar.set(item.char, item.expVal / expSum);
+    }
+
     const topK = scored.slice(0, 5).map((item) => ({
       char: item.char,
       prob: item.expVal / expSum,
     }));
 
+    const prediction = topK[0]?.char ?? null;
+    const networkTrace = buildNetworkTrace(normalizedGrid, probByChar, scored, prediction, true);
+
     return {
-      prediction: topK[0]?.char ?? null,
+      prediction,
       confidence: topK[0]?.prob ?? 0,
       topK,
       normalizedGrid,
       hasInk: true,
+      networkTrace,
     };
   }
 

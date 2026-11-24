@@ -562,6 +562,408 @@ function classifyMiniBrain(queryGrid, examplesA, examplesB) {
 }
 
 /* ==========================================================================
+   Live Neural Network & Node Activations SVG (Draw Characters Tab)
+   ========================================================================== */
+
+function LiveCharNetworkDiagram({ networkTrace, isDeepDive }) {
+  const [hoveredNode, setHoveredNode] = useState(null) // { layer: 'input'|'hidden'|'output', index }
+  const [pinnedNode, setPinnedNode] = useState(null)
+
+  const activeFocus = hoveredNode || pinnedNode
+
+  const handleNodeClick = (layer, index) => {
+    playClick()
+    setPinnedNode((prev) =>
+      prev && prev.layer === layer && prev.index === index ? null : { layer, index },
+    )
+  }
+
+  if (!networkTrace) {
+    return (
+      <div className="vision-net-card" aria-label="Inside the Neural Network Live Node Activations">
+        <div className="vision-net-head">
+          <h3>Inside the Neural Network — Live Node Activations</h3>
+          <span className="badge badge-subtle">16 Input → 12 Feature → 10 Output</span>
+        </div>
+        <div className="vision-net-empty">
+          <Brain size={30} color="#34d399" />
+          <p style={{ fontWeight: 700, color: '#f8fafc' }}>
+            Draw a digit or letter above to watch signals flow through every neuron!
+          </p>
+          <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+            You’ll see all 16 pixel zones, 12 feature-detector neurons, and 10 character outputs light up in real time.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const { inputNodes, hiddenNodes, outputNodes, inputToHiddenEdges, hiddenToOutputEdges } =
+    networkTrace
+
+  const inputY = (idx) => 52 + idx * 24
+  const hiddenY = (idx) => 56 + idx * 32
+  const outputY = (idx) => 58 + idx * 36
+
+  const isEdgeHighlighted = (kind, edge) => {
+    if (!activeFocus) return null
+    if (kind === 'ih') {
+      if (activeFocus.layer === 'input') return edge.from === activeFocus.index
+      if (activeFocus.layer === 'hidden') return edge.to === activeFocus.index
+      return false
+    }
+    if (activeFocus.layer === 'hidden') return edge.from === activeFocus.index
+    if (activeFocus.layer === 'output') return edge.to === activeFocus.index
+    return false
+  }
+
+  // Build kid-friendly inspector caption for hovered/pinned node or default winner summary
+  let inspectorCaption = ''
+  if (activeFocus?.layer === 'hidden') {
+    const hNode = hiddenNodes[activeFocus.index]
+    if (hNode) {
+      const pct = Math.round(hNode.activation * 100)
+      const topTargets = hiddenToOutputEdges
+        .filter((e) => e.from === activeFocus.index && e.weight > 0.05)
+        .sort((a, b) => b.weight - a.weight)
+        .slice(0, 3)
+        .map((e) => outputNodes[e.to]?.char)
+        .filter(Boolean)
+      const clueText =
+        topTargets.length > 0 ? ` — strong clue for ${topTargets.join(', ')}` : ''
+      inspectorCaption = isDeepDive
+        ? `${hNode.label} neuron (${hNode.shortLabel}): activation = ${hNode.activation.toFixed(2)} (${pct}%)${clueText}. ${hNode.description}`
+        : `${hNode.shortLabel} neuron is ${pct}% active${clueText}! (${hNode.description})`
+    }
+  } else if (activeFocus?.layer === 'output') {
+    const oNode = outputNodes[activeFocus.index]
+    if (oNode) {
+      const pct = Math.round(oNode.prob * 100)
+      const topDrivers = hiddenToOutputEdges
+        .filter((e) => e.to === activeFocus.index && e.signal > 0.02)
+        .sort((a, b) => b.signal - a.signal)
+        .slice(0, 3)
+        .map((e) => hiddenNodes[e.from]?.shortLabel)
+        .filter(Boolean)
+      const driverText =
+        topDrivers.length > 0 ? ` — boosted by ${topDrivers.join(' + ')}` : ''
+      inspectorCaption = `Output "${oNode.char}" (${pct}% probability)${driverText}.`
+    }
+  } else if (activeFocus?.layer === 'input') {
+    const iNode = inputNodes[activeFocus.index]
+    if (iNode) {
+      const pct = Math.round(iNode.activation * 100)
+      const fed = inputToHiddenEdges.filter((e) => e.from === activeFocus.index).length
+      inspectorCaption = `Input Pixel Zone (row ${iNode.row + 1}, col ${iNode.col + 1}) is ${pct}% bright — sending signals to ${fed} feature detector(s).`
+    }
+  } else {
+    const winner = outputNodes.find((n) => n.isWinner) || outputNodes[0]
+    const topActiveHidden = [...hiddenNodes]
+      .sort((a, b) => b.activation - a.activation)
+      .slice(0, 3)
+      .map((n) => `${n.shortLabel} (${Math.round(n.activation * 100)}%)`)
+    inspectorCaption = winner
+      ? `Top active clues for "${winner.char}": ${topActiveHidden.join(', ')}. Hover or click any neuron to trace its synapses!`
+      : 'Hover or click any neuron to trace its live synapses!'
+  }
+
+  return (
+    <div className="vision-net-card" aria-label="Inside the Neural Network Live Node Activations">
+      <div className="vision-net-head">
+        <h3>Inside the Neural Network — Live Node Activations</h3>
+        <div className="vision-net-legend">
+          <span>
+            <span className="vision-net-legend-dot" style={{ background: '#14b8a6' }} />
+            Excitatory (+)
+          </span>
+          <span>
+            <span className="vision-net-legend-dot" style={{ background: '#fb7185' }} />
+            Inhibitory (−)
+          </span>
+          <span>Hover or click any neuron</span>
+        </div>
+      </div>
+
+      <div className="vision-net-svg-wrap">
+        <svg
+          className="vision-net-svg"
+          viewBox="0 0 880 440"
+          role="img"
+          aria-label="3-layer neural network showing live activations from 16 input pixel zones through 12 feature detectors to 10 output characters"
+        >
+          <defs>
+            <filter id="visionNodeGlow" x="-40%" y="-40%" width="180%" height="180%">
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+
+          {/* Column Headers */}
+          <text x="92" y="24" textAnchor="middle" fill="#94a3b8" fontSize="11" fontWeight="700">
+            INPUT LAYER (16 Zones)
+          </text>
+          <text x="424" y="24" textAnchor="middle" fill="#94a3b8" fontSize="11" fontWeight="700">
+            HIDDEN LAYER (12 Feature Detectors)
+          </text>
+          <text x="762" y="24" textAnchor="middle" fill="#94a3b8" fontSize="11" fontWeight="700">
+            OUTPUT LAYER (10 Predictions)
+          </text>
+
+          {/* Input -> Hidden Synapses */}
+          <g>
+            {inputToHiddenEdges.map((edge, idx) => {
+              const x1 = 102
+              const y1 = inputY(edge.from)
+              const x2 = 366
+              const y2 = hiddenY(edge.to)
+              const highlighted = isEdgeHighlighted('ih', edge)
+              const mag = Math.min(1, Math.abs(edge.signal) * 1.45)
+              const baseOpacity = 0.08 + mag * 0.65
+              const opacity =
+                highlighted === null ? baseOpacity : highlighted ? Math.max(0.5, baseOpacity + 0.3) : 0.05
+              const strokeWidth =
+                highlighted === true ? 1.6 + mag * 2.4 : 0.8 + mag * 2.1
+              const color = edge.signal >= 0 ? '#14b8a6' : '#fb7185'
+              return (
+                <path
+                  key={`ih-${idx}`}
+                  d={`M ${x1} ${y1} C ${x1 + 95} ${y1}, ${x2 - 95} ${y2}, ${x2} ${y2}`}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={strokeWidth}
+                  strokeOpacity={opacity}
+                />
+              )
+            })}
+          </g>
+
+          {/* Hidden -> Output Synapses */}
+          <g>
+            {hiddenToOutputEdges.map((edge, idx) => {
+              const x1 = 494
+              const y1 = hiddenY(edge.from)
+              const x2 = 740
+              const y2 = outputY(edge.to)
+              const highlighted = isEdgeHighlighted('ho', edge)
+              const mag = Math.min(1, Math.abs(edge.signal) * 1.6)
+              const baseOpacity = 0.1 + mag * 0.72
+              const opacity =
+                highlighted === null ? baseOpacity : highlighted ? Math.max(0.55, baseOpacity + 0.3) : 0.05
+              const strokeWidth =
+                highlighted === true ? 1.8 + mag * 2.8 : 0.9 + mag * 2.4
+              const color = edge.signal >= 0 ? '#10b981' : '#fb7185'
+              return (
+                <path
+                  key={`ho-${idx}`}
+                  d={`M ${x1} ${y1} C ${x1 + 90} ${y1}, ${x2 - 90} ${y2}, ${x2} ${y2}`}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={strokeWidth}
+                  strokeOpacity={opacity}
+                />
+              )
+            })}
+          </g>
+
+          {/* Column 1: 16 Input Pixel Zone Nodes */}
+          <g>
+            {inputNodes.map((node, idx) => {
+              const cy = inputY(idx)
+              const act = node.activation
+              const isFocused = activeFocus?.layer === 'input' && activeFocus.index === idx
+              const fill =
+                act > 0.05
+                  ? `rgba(20, 184, 166, ${(0.22 + act * 0.78).toFixed(2)})`
+                  : '#1e293b'
+              return (
+                <g
+                  key={`in-${node.id}`}
+                  className="vision-net-node-hit"
+                  onMouseEnter={() => setHoveredNode({ layer: 'input', index: idx })}
+                  onMouseLeave={() => setHoveredNode(null)}
+                  onClick={() => handleNodeClick('input', idx)}
+                >
+                  <title>{`Zone (${node.row + 1},${node.col + 1}): ${Math.round(act * 100)}%`}</title>
+                  <text
+                    x="76"
+                    y={cy + 3.5}
+                    textAnchor="end"
+                    fill={act > 0.25 ? '#cbd5e1' : '#64748b'}
+                    fontSize="9.5"
+                    fontFamily="var(--font-mono)"
+                  >
+                    {node.row + 1},{node.col + 1}
+                  </text>
+                  <circle
+                    cx="92"
+                    cy={cy}
+                    r={isFocused ? 10 : 8.5}
+                    fill={fill}
+                    stroke={isFocused ? '#fbbf24' : act > 0.3 ? '#5eead4' : '#334155'}
+                    strokeWidth={isFocused ? 2.5 : 1.5}
+                    filter={act > 0.45 ? 'url(#visionNodeGlow)' : undefined}
+                  />
+                </g>
+              )
+            })}
+          </g>
+
+          {/* Column 2: 12 Hidden Feature-Detector Neurons */}
+          <g>
+            {hiddenNodes.map((node, idx) => {
+              const cy = hiddenY(idx)
+              const act = node.activation
+              const pct = Math.round(act * 100)
+              const isFocused = activeFocus?.layer === 'hidden' && activeFocus.index === idx
+              const fill =
+                act > 0.08
+                  ? `rgba(16, 185, 129, ${(0.2 + act * 0.8).toFixed(2)})`
+                  : '#1e293b'
+              return (
+                <g
+                  key={`hid-${node.id}`}
+                  className="vision-net-node-hit"
+                  onMouseEnter={() => setHoveredNode({ layer: 'hidden', index: idx })}
+                  onMouseLeave={() => setHoveredNode(null)}
+                  onClick={() => handleNodeClick('hidden', idx)}
+                >
+                  <title>{`${node.label}: ${pct}%`}</title>
+                  <circle
+                    cx="380"
+                    cy={cy}
+                    r={isFocused ? 14 : 12.5}
+                    fill={fill}
+                    stroke={isFocused ? '#fbbf24' : act > 0.35 ? '#6ee7b7' : '#475569'}
+                    strokeWidth={isFocused ? 2.5 : 1.6}
+                    filter={act > 0.45 ? 'url(#visionNodeGlow)' : undefined}
+                  />
+                  <text
+                    x="380"
+                    y={cy + 3.5}
+                    textAnchor="middle"
+                    fill={act > 0.3 ? '#ffffff' : '#94a3b8'}
+                    fontSize="9"
+                    fontWeight="700"
+                    fontFamily="var(--font-mono)"
+                  >
+                    {pct}
+                  </text>
+                  <rect
+                    x="399"
+                    y={cy - 10}
+                    width="90"
+                    height="20"
+                    rx="6"
+                    fill={isFocused ? '#1e3a8a' : act > 0.45 ? 'rgba(16, 185, 129, 0.22)' : '#1e293b'}
+                    stroke={isFocused ? '#fbbf24' : act > 0.45 ? '#34d399' : '#334155'}
+                    strokeWidth="1"
+                  />
+                  <text
+                    x="444"
+                    y={cy + 3.5}
+                    textAnchor="middle"
+                    fill={act > 0.45 || isFocused ? '#f8fafc' : '#94a3b8'}
+                    fontSize="10.5"
+                    fontWeight="700"
+                  >
+                    {node.shortLabel}
+                  </text>
+                </g>
+              )
+            })}
+          </g>
+
+          {/* Column 3: 10 Output Character Nodes */}
+          <g>
+            {outputNodes.map((node, idx) => {
+              const cy = outputY(idx)
+              const pct = Math.round(node.prob * 100)
+              const isFocused = activeFocus?.layer === 'output' && activeFocus.index === idx
+              const fill = node.isWinner
+                ? '#10b981'
+                : node.prob > 0.08
+                  ? `rgba(14, 165, 233, ${(0.25 + node.prob * 0.75).toFixed(2)})`
+                  : '#1e293b'
+              return (
+                <g
+                  key={`out-${node.char}`}
+                  className="vision-net-node-hit"
+                  onMouseEnter={() => setHoveredNode({ layer: 'output', index: idx })}
+                  onMouseLeave={() => setHoveredNode(null)}
+                  onClick={() => handleNodeClick('output', idx)}
+                >
+                  <title>{`Character "${node.char}": ${pct}%`}</title>
+                  {node.isWinner && (
+                    <circle
+                      cx="758"
+                      cy={cy}
+                      r="20"
+                      fill="none"
+                      stroke="#34d399"
+                      strokeWidth="2.5"
+                      strokeOpacity="0.85"
+                      filter="url(#visionNodeGlow)"
+                    />
+                  )}
+                  <circle
+                    cx="758"
+                    cy={cy}
+                    r={node.isWinner || isFocused ? 16 : 14.5}
+                    fill={fill}
+                    stroke={isFocused ? '#fbbf24' : node.isWinner ? '#a7f3d0' : '#475569'}
+                    strokeWidth={isFocused || node.isWinner ? 2.4 : 1.5}
+                    filter={node.isWinner ? 'url(#visionNodeGlow)' : undefined}
+                  />
+                  <text
+                    x="758"
+                    y={cy + 5}
+                    textAnchor="middle"
+                    fill={node.isWinner || node.prob > 0.1 ? '#ffffff' : '#cbd5e1'}
+                    fontSize="14"
+                    fontWeight="700"
+                    fontFamily="var(--font-display)"
+                  >
+                    {node.char}
+                  </text>
+                  <text
+                    x="784"
+                    y={cy + 4}
+                    textAnchor="start"
+                    fill={node.isWinner ? '#34d399' : '#94a3b8'}
+                    fontSize={node.isWinner ? '12.5' : '11'}
+                    fontWeight="700"
+                    fontFamily="var(--font-mono)"
+                  >
+                    {pct}%
+                  </text>
+                </g>
+              )
+            })}
+          </g>
+        </svg>
+      </div>
+
+      {/* Interactive Inspector Caption */}
+      <div className="vision-net-inspector" aria-live="polite">
+        <span>{inspectorCaption}</span>
+        {pinnedNode && (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setPinnedNode(null)}
+          >
+            Unpin Neuron
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ==========================================================================
    Main Stage 4 Component: VisionLab
    ========================================================================== */
 
@@ -1833,6 +2235,11 @@ export default function VisionLab() {
               )}
             </div>
           </div>
+
+          <LiveCharNetworkDiagram
+            networkTrace={charResult?.networkTrace || null}
+            isDeepDive={isDeepDive}
+          />
 
           <div className={isDeepDive ? 'callout-deep' : 'callout-kid'} style={{ marginTop: 18 }}>
             <strong>{isDeepDive ? 'How MNIST-Style Recognition Works: ' : 'How did it read my handwriting? '}</strong>

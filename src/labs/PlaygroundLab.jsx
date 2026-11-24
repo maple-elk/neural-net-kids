@@ -115,6 +115,51 @@ const CANVAS_SIZE = 320
 const GRID_RES = 36
 const MAX_SPARKLINE_POINTS = 100
 const LOSS_TARGET = 0.05
+const DEFAULT_PROBE = { x: 0.45, y: 0.45 }
+
+function formatActivation(val, isOutput = false) {
+  if (!Number.isFinite(val)) return '0.00'
+  if (isOutput) return val.toFixed(2)
+  return `${val >= 0 ? '+' : ''}${val.toFixed(2)}`
+}
+
+function getNodeActivationVisual(val, isOutput = false) {
+  const centered = isOutput ? (val - 0.5) * 2 : Math.max(-1, Math.min(1, val))
+  const intensity = Math.min(1, Math.abs(centered))
+
+  if (intensity < 0.06) {
+    return {
+      fill: '#f8fafc',
+      stroke: '#94a3b8',
+      textColor: '#0f172a',
+      glow: null,
+    }
+  }
+
+  if (centered > 0) {
+    // Positive activation -> Teal / Sky glow
+    const r = Math.round(240 - intensity * (240 - 14))
+    const g = Math.round(249 - intensity * (249 - 165))
+    const b = Math.round(255 - intensity * (255 - 233))
+    return {
+      fill: `rgb(${r}, ${g}, ${b})`,
+      stroke: '#0284c7',
+      textColor: intensity > 0.52 ? '#ffffff' : '#0c4a6e',
+      glow: intensity > 0.28 ? 'url(#pgNodeGlowTeal)' : null,
+    }
+  }
+
+  // Negative activation -> Coral / Rose glow
+  const r = Math.round(255 - intensity * (255 - 244))
+  const g = Math.round(241 - intensity * (241 - 63))
+  const b = Math.round(242 - intensity * (242 - 94))
+  return {
+    fill: `rgb(${r}, ${g}, ${b})`,
+    stroke: '#e11d48',
+    textColor: intensity > 0.52 ? '#ffffff' : '#881337',
+    glow: intensity > 0.28 ? 'url(#pgNodeGlowCoral)' : null,
+  }
+}
 
 function countParameters(layerSizes) {
   let total = 0
@@ -226,14 +271,14 @@ function LossSparkline({ history }) {
   )
 }
 
-function NetworkDiagramSVG({ snapshot, isDeepDive }) {
+function NetworkDiagramSVG({ snapshot, activations, isDeepDive }) {
   const width = 560
-  const height = 250
+  const height = 276
   const { layerSizes, layers } = snapshot
   const numCols = layerSizes.length
   const marginX = 56
-  const topY = 40
-  const bottomY = height - 24
+  const topY = 38
+  const bottomY = height - 26
 
   const colPositions = layerSizes.map((count, colIdx) => {
     const x =
@@ -241,7 +286,7 @@ function NetworkDiagramSVG({ snapshot, isDeepDive }) {
         ? width / 2
         : marginX + (colIdx / (numCols - 1)) * (width - marginX * 2)
     const usableH = bottomY - topY
-    const stepY = count > 1 ? Math.min(36, usableH / (count - 1)) : 0
+    const stepY = count > 1 ? Math.min(42, usableH / (count - 1)) : 0
     const startY = topY + (usableH - stepY * (count - 1)) / 2
     const nodes = Array.from({ length: count }, (_, nodeIdx) => ({
       x,
@@ -255,12 +300,17 @@ function NetworkDiagramSVG({ snapshot, isDeepDive }) {
     const fromNodes = colPositions[l].nodes
     const toNodes = colPositions[l + 1].nodes
     const weights = layers[l].weights
+    const srcActs = activations?.[l] || []
     for (let j = 0; j < toNodes.length; j++) {
       for (let i = 0; i < fromNodes.length; i++) {
         const w = weights[j][i]
+        const srcAct = srcActs[i] ?? 0
+        const signal = srcAct * w
         const mag = Math.abs(w)
-        const strokeWidth = Math.min(5.2, 0.75 + mag * 1.25)
-        const opacity = Math.min(0.92, 0.18 + mag * 0.3)
+        const signalMag = Math.abs(signal)
+        const isActiveSignal = signalMag >= 0.22
+        const strokeWidth = Math.min(5.2, 0.75 + mag * 1.15 + signalMag * 0.45)
+        const opacity = Math.min(0.96, 0.16 + mag * 0.22 + signalMag * 0.34)
         edges.push({
           key: `${l}-${i}-${j}`,
           x1: fromNodes[i].x,
@@ -268,7 +318,11 @@ function NetworkDiagramSVG({ snapshot, isDeepDive }) {
           x2: toNodes[j].x,
           y2: toNodes[j].y,
           w,
+          signal,
+          signalMag,
+          isActiveSignal,
           color: w >= 0 ? '#0ea5e9' : '#f43f5e',
+          signalColor: signal >= 0 ? '#38bdf8' : '#fb7185',
           strokeWidth,
           opacity,
         })
@@ -281,8 +335,26 @@ function NetworkDiagramSVG({ snapshot, isDeepDive }) {
       className="pg-network-svg"
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Neural network diagram with layers ${layerSizes.join(' to ')}`}
+      aria-label={`Neural network diagram with live activations across layers ${layerSizes.join(' to ')}`}
     >
+      <defs>
+        <filter id="pgEdgeGlow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="2.4" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <radialGradient id="pgNodeGlowTeal" cx="50%" cy="50%" r="50%">
+          <stop offset="55%" stopColor="#0ea5e9" stopOpacity="0.34" />
+          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
+        </radialGradient>
+        <radialGradient id="pgNodeGlowCoral" cx="50%" cy="50%" r="50%">
+          <stop offset="55%" stopColor="#f43f5e" stopOpacity="0.34" />
+          <stop offset="100%" stopColor="#f43f5e" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+
       {/* Column headers */}
       {colPositions.map((col, colIdx) => {
         let label = `Hidden ${colIdx}`
@@ -292,7 +364,7 @@ function NetworkDiagramSVG({ snapshot, isDeepDive }) {
           <text
             key={`hdr-${colIdx}`}
             x={col.x}
-            y={18}
+            y={16}
             textAnchor="middle"
             fontSize="11"
             fontWeight="700"
@@ -302,6 +374,26 @@ function NetworkDiagramSVG({ snapshot, isDeepDive }) {
           </text>
         )
       })}
+
+      {/* Active signal-carrying glow underlay */}
+      <g>
+        {edges
+          .filter((e) => e.isActiveSignal)
+          .map((e) => (
+            <line
+              key={`glow-${e.key}`}
+              x1={e.x1}
+              y1={e.y1}
+              x2={e.x2}
+              y2={e.y2}
+              stroke={e.signalColor}
+              strokeWidth={(e.strokeWidth + 2.4).toFixed(2)}
+              strokeOpacity={Math.min(0.45, 0.12 + e.signalMag * 0.25).toFixed(2)}
+              strokeLinecap="round"
+              filter="url(#pgEdgeGlow)"
+            />
+          ))}
+      </g>
 
       {/* Weighted connections */}
       <g>
@@ -317,65 +409,87 @@ function NetworkDiagramSVG({ snapshot, isDeepDive }) {
             strokeOpacity={e.opacity.toFixed(2)}
             strokeLinecap="round"
           >
-            <title>{`Weight: ${e.w >= 0 ? '+' : ''}${e.w.toFixed(2)}`}</title>
+            <title>
+              {`Weight: ${e.w >= 0 ? '+' : ''}${e.w.toFixed(2)} | Live signal: ${e.signal >= 0 ? '+' : ''}${e.signal.toFixed(2)}`}
+            </title>
           </line>
         ))}
       </g>
 
-      {/* Nodes */}
+      {/* Nodes with live activation fills & numeric readouts */}
       {colPositions.map((col, colIdx) => {
         const isInput = colIdx === 0
         const isOutput = colIdx === numCols - 1
         const biases = !isInput ? layers[colIdx - 1]?.biases || [] : []
+        const layerActs = activations?.[colIdx] || []
 
         return col.nodes.map((node, nodeIdx) => {
           const bias = !isInput ? biases[nodeIdx] ?? 0 : 0
-          const biasColor = bias >= 0 ? '#0ea5e9' : '#f43f5e'
-          let fill = '#ffffff'
-          let stroke = biasColor
-          let textColor = '#0f172a'
+          const actVal = layerActs[nodeIdx] ?? 0
+          const vis = getNodeActivationVisual(actVal, isOutput)
+          const radius = isInput || isOutput ? 14.5 : 12.5
           let label = isDeepDive ? `h${colIdx}.${nodeIdx + 1}` : `${nodeIdx + 1}`
 
           if (isInput) {
-            fill = '#eef2ff'
-            stroke = '#4f46e5'
-            textColor = '#312e81'
             label = nodeIdx === 0 ? 'x' : 'y'
           } else if (isOutput) {
-            fill = '#4f46e5'
-            stroke = '#312e81'
-            textColor = '#ffffff'
             label = 'ŷ'
           }
 
+          const valText = formatActivation(actVal, isOutput)
+
           return (
             <g key={`n-${colIdx}-${nodeIdx}`}>
+              {vis.glow && (
+                <circle cx={node.x} cy={node.y} r={radius + 8} fill={vis.glow} />
+              )}
               <circle
                 cx={node.x}
                 cy={node.y}
-                r={isInput || isOutput ? 16 : 13.5}
-                fill={fill}
-                stroke={stroke}
-                strokeWidth={isInput || isOutput ? 2.5 : 2.4}
+                r={radius}
+                fill={vis.fill}
+                stroke={vis.stroke}
+                strokeWidth={isInput || isOutput ? 2.4 : 2.2}
               >
                 <title>
                   {isInput
-                    ? `Input coordinate ${label}`
+                    ? `Input ${label} = ${valText}`
                     : isOutput
-                      ? `Output probability ŷ (bias: ${bias.toFixed(2)})`
-                      : `Hidden neuron ${nodeIdx + 1} (bias: ${bias.toFixed(2)})`}
+                      ? `Output probability ŷ = ${(actVal * 100).toFixed(1)}% (bias: ${bias.toFixed(2)})`
+                      : `Hidden neuron ${nodeIdx + 1}: activation = ${valText} (bias: ${bias.toFixed(2)})`}
                 </title>
               </circle>
               <text
                 x={node.x}
-                y={node.y + 4}
+                y={node.y + 3.8}
                 textAnchor="middle"
-                fontSize={isDeepDive && !isInput && !isOutput ? '9.5' : '11.5'}
+                fontSize={isDeepDive && !isInput && !isOutput ? '8.5' : '11'}
                 fontWeight="700"
                 fontFamily="var(--font-mono)"
-                fill={textColor}
+                fill={vis.textColor}
               >
                 {label}
+              </text>
+              <rect
+                x={node.x - 19}
+                y={node.y + radius + 2}
+                width={38}
+                height={13}
+                rx={4}
+                fill="rgba(255, 255, 255, 0.9)"
+                stroke="rgba(148, 163, 184, 0.35)"
+                strokeWidth="0.7"
+              />
+              <text
+                x={node.x}
+                y={node.y + radius + 11.2}
+                textAnchor="middle"
+                fontSize="8.8"
+                fontWeight="700"
+                fontFamily="var(--font-mono)"
+                fill="#334155"
+              >
+                {valText}
               </text>
             </g>
           )
@@ -412,11 +526,13 @@ export default function PlaygroundLab() {
       seed: 42,
     })
     const evalRes = initNet.evaluate(initDataset)
+    const initTrace = initNet.forward([DEFAULT_PROBE.x, DEFAULT_PROBE.y])
     return {
       net: initNet,
       loss: evalRes.loss,
       accuracy: evalRes.accuracy,
       snapshot: initNet.getSnapshot(),
+      trace: initTrace,
     }
   }, [])
 
@@ -429,7 +545,14 @@ export default function PlaygroundLab() {
   const [snapshot, setSnapshot] = useState(initialBundle.snapshot)
   const [solvedMissions, setSolvedMissions] = useState(() => new Set())
   const [recentCelebration, setRecentCelebration] = useState(null)
+
+  // Live probe point for real-time node activation tracing
+  const [pinnedProbe, setPinnedProbe] = useState(DEFAULT_PROBE)
+  const [isPinned, setIsPinned] = useState(false)
   const [hoverProbe, setHoverProbe] = useState(null)
+  const [probeTrace, setProbeTrace] = useState(initialBundle.trace)
+
+  const activeProbe = hoverProbe || pinnedProbe
 
   // Refs for smooth 60fps training loop & canvas rendering
   const canvasRef = useRef(null)
@@ -439,6 +562,8 @@ export default function PlaygroundLab() {
   const lrRef = useRef(learningRate)
   const configRef = useRef({ datasetType, hiddenSizes })
   const solvedMissionsRef = useRef(solvedMissions)
+  const activeProbeRef = useRef(activeProbe)
+  const isPinnedRef = useRef(isPinned)
   const rafRef = useRef(null)
 
   // Sync refs in effects (React Compiler safe)
@@ -461,6 +586,11 @@ export default function PlaygroundLab() {
     solvedMissionsRef.current = solvedMissions
   }, [solvedMissions])
 
+  useEffect(() => {
+    activeProbeRef.current = activeProbe
+    isPinnedRef.current = isPinned
+  }, [activeProbe, isPinned])
+
   const fireConfetti = useCallback(() => {
     if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
       return
@@ -473,7 +603,7 @@ export default function PlaygroundLab() {
     })
   }, [])
 
-  const drawCanvas = useCallback((net, points) => {
+  const drawCanvas = useCallback((net, points, probe = activeProbeRef.current, pinned = isPinnedRef.current) => {
     const canvas = canvasRef.current
     if (!canvas || !net) return
     const ctx = canvas.getContext('2d')
@@ -554,6 +684,45 @@ export default function PlaygroundLab() {
       ctx.lineWidth = 1.6
       ctx.stroke()
     }
+
+    // Crisp crosshair marker for the live signal probe point
+    if (probe) {
+      const px = ((probe.x + 1) / 2) * CANVAS_SIZE
+      const py = ((1 - probe.y) / 2) * CANVAS_SIZE
+
+      ctx.save()
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 3.5
+      ctx.beginPath()
+      ctx.moveTo(px - 11, py)
+      ctx.lineTo(px + 11, py)
+      ctx.moveTo(px, py - 11)
+      ctx.lineTo(px, py + 11)
+      ctx.stroke()
+
+      ctx.strokeStyle = pinned ? '#4f46e5' : '#0f172a'
+      ctx.lineWidth = 1.8
+      ctx.beginPath()
+      ctx.moveTo(px - 10, py)
+      ctx.lineTo(px + 10, py)
+      ctx.moveTo(px, py - 10)
+      ctx.lineTo(px, py + 10)
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.arc(px, py, 6.5, 0, Math.PI * 2)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
+      ctx.fill()
+      ctx.lineWidth = 2.2
+      ctx.strokeStyle = pinned ? '#4f46e5' : '#0f172a'
+      ctx.stroke()
+
+      ctx.beginPath()
+      ctx.arc(px, py, 2.2, 0, Math.PI * 2)
+      ctx.fillStyle = pinned ? '#4f46e5' : '#0f172a'
+      ctx.fill()
+      ctx.restore()
+    }
   }, [])
 
   const checkMissions = useCallback(
@@ -611,6 +780,8 @@ export default function PlaygroundLab() {
       configRef.current = { datasetType: nextDatasetType, hiddenSizes: nextHiddenSizes }
 
       const initial = net.evaluate(nextPoints)
+      const probe = activeProbeRef.current
+      const nextTrace = net.forward([probe.x, probe.y])
       setDatasetType(nextDatasetType)
       setHiddenSizes(nextHiddenSizes)
       setActivation(nextActivation)
@@ -621,7 +792,8 @@ export default function PlaygroundLab() {
       setAccuracy(initial.accuracy)
       setLossHistory([initial.loss])
       setSnapshot(net.getSnapshot())
-      drawCanvas(net, nextPoints)
+      setProbeTrace(nextTrace)
+      drawCanvas(net, nextPoints, probe, isPinnedRef.current)
     },
     [datasetType, hiddenSizes, activation, learningRate, seed, drawCanvas],
   )
@@ -639,6 +811,8 @@ export default function PlaygroundLab() {
       }
       if (!result) return
 
+      const probe = activeProbeRef.current
+      const nextTrace = net.forward([probe.x, probe.y])
       setEpoch(result.epoch)
       setLoss(result.loss)
       setAccuracy(result.accuracy)
@@ -650,7 +824,8 @@ export default function PlaygroundLab() {
         return next
       })
       setSnapshot(net.getSnapshot())
-      drawCanvas(net, pts)
+      setProbeTrace(nextTrace)
+      drawCanvas(net, pts, probe, isPinnedRef.current)
       checkMissions(result.loss, result.epoch)
     },
     [drawCanvas, checkMissions],
@@ -740,15 +915,78 @@ export default function PlaygroundLab() {
     })
   }
 
-  const handleCanvasMouseMove = (e) => {
+  const getCanvasCoords = (e) => {
     const canvas = canvasRef.current
-    const net = mlpRef.current
-    if (!canvas || !net) return
+    if (!canvas) return null
     const rect = canvas.getBoundingClientRect()
-    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1
-    const ny = 1 - ((e.clientY - rect.top) / rect.height) * 2
-    const prob = net.predict(nx, ny)
-    setHoverProbe({ x: nx, y: ny, prob })
+    const nx = Math.max(-1, Math.min(1, ((e.clientX - rect.left) / rect.width) * 2 - 1))
+    const ny = Math.max(-1, Math.min(1, 1 - ((e.clientY - rect.top) / rect.height) * 2))
+    return { x: nx, y: ny }
+  }
+
+  const handleCanvasMouseMove = (e) => {
+    const net = mlpRef.current
+    const coords = getCanvasCoords(e)
+    if (!net || !coords) return
+    const trace = net.forward([coords.x, coords.y])
+    const nextHover = { x: coords.x, y: coords.y, prob: trace.output }
+    activeProbeRef.current = nextHover
+    setHoverProbe(nextHover)
+    setProbeTrace(trace)
+    drawCanvas(net, datasetRef.current, nextHover, isPinnedRef.current)
+  }
+
+  const handleCanvasMouseLeave = () => {
+    const net = mlpRef.current
+    setHoverProbe(null)
+    activeProbeRef.current = pinnedProbe
+    if (net) {
+      setProbeTrace(net.forward([pinnedProbe.x, pinnedProbe.y]))
+      drawCanvas(net, datasetRef.current, pinnedProbe, isPinnedRef.current)
+    }
+  }
+
+  const handleCanvasClick = (e) => {
+    const net = mlpRef.current
+    const coords = getCanvasCoords(e)
+    if (!net || !coords) return
+    playClick()
+
+    const distToPinned = Math.hypot(coords.x - pinnedProbe.x, coords.y - pinnedProbe.y)
+    if (isPinned && distToPinned < 0.09) {
+      // Clicking right on the pinned point unpins it back to default
+      isPinnedRef.current = false
+      activeProbeRef.current = DEFAULT_PROBE
+      setIsPinned(false)
+      setPinnedProbe(DEFAULT_PROBE)
+      setHoverProbe(null)
+      setProbeTrace(net.forward([DEFAULT_PROBE.x, DEFAULT_PROBE.y]))
+      drawCanvas(net, datasetRef.current, DEFAULT_PROBE, false)
+      return
+    }
+
+    const trace = net.forward([coords.x, coords.y])
+    isPinnedRef.current = true
+    activeProbeRef.current = coords
+    setIsPinned(true)
+    setPinnedProbe(coords)
+    setHoverProbe({ x: coords.x, y: coords.y, prob: trace.output })
+    setProbeTrace(trace)
+    drawCanvas(net, datasetRef.current, coords, true)
+  }
+
+  const handleUnpinProbe = () => {
+    const net = mlpRef.current
+    playClick()
+    isPinnedRef.current = false
+    activeProbeRef.current = DEFAULT_PROBE
+    setIsPinned(false)
+    setPinnedProbe(DEFAULT_PROBE)
+    setHoverProbe(null)
+    if (net) {
+      setProbeTrace(net.forward([DEFAULT_PROBE.x, DEFAULT_PROBE.y]))
+      drawCanvas(net, datasetRef.current, DEFAULT_PROBE, false)
+    }
   }
 
   const totalParams = countParameters(snapshot.layerSizes)
@@ -911,12 +1149,13 @@ export default function PlaygroundLab() {
                 height={CANVAS_SIZE}
                 className="pg-canvas"
                 onMouseMove={handleCanvasMouseMove}
-                onMouseLeave={() => setHoverProbe(null)}
+                onMouseLeave={handleCanvasMouseLeave}
+                onClick={handleCanvasClick}
               />
               {hoverProbe && (
                 <div className="pg-canvas-probe">
                   ({hoverProbe.x.toFixed(2)}, {hoverProbe.y.toFixed(2)}) →{' '}
-                  {Math.round(hoverProbe.prob * 100)}% Teal
+                  {Math.round(hoverProbe.prob * 100)}% Teal {isPinned ? '· Click to move' : '· Click to pin'}
                 </div>
               )}
             </div>
@@ -1017,9 +1256,40 @@ export default function PlaygroundLab() {
               </div>
             </div>
 
+            {/* Live Signal Probe Banner */}
+            <div className="pg-probe-banner">
+              <div className="pg-probe-banner-main">
+                <strong>Live Signal Probe:</strong>
+                <span className="font-mono">
+                  ({activeProbe.x.toFixed(2)}, {activeProbe.y.toFixed(2)})
+                </span>
+                <span>→</span>
+                <span
+                  className={`pg-probe-pill ${probeTrace.output >= 0.5 ? 'is-teal' : 'is-coral'}`}
+                >
+                  ŷ = {Math.round(probeTrace.output * 100)}%{' '}
+                  {probeTrace.output >= 0.5 ? 'Teal' : 'Coral'}
+                </span>
+                <span>— hover or click the 2D map to test any point through the neurons!</span>
+              </div>
+              {isPinned && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={handleUnpinProbe}
+                >
+                  Unpin Probe
+                </button>
+              )}
+            </div>
+
             {/* Live SVG Architecture Diagram */}
             <div className="pg-svg-stage">
-              <NetworkDiagramSVG snapshot={snapshot} isDeepDive={isDeepDive} />
+              <NetworkDiagramSVG
+                snapshot={snapshot}
+                activations={probeTrace.activations}
+                isDeepDive={isDeepDive}
+              />
 
               {/* Per-Layer Neuron Steppers */}
               <div className="pg-neuron-steppers">

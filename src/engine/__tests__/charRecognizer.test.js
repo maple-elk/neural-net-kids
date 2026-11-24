@@ -216,4 +216,69 @@ describe('Hand-Drawn Character Recognizer (src/engine/charRecognizer.js)', () =>
     const avgMs = (performance.now() - start) / iterations;
     expect(avgMs).toBeLessThan(5);
   });
+
+  it('returns a valid, bounded networkTrace with distinct hidden activations per character', () => {
+    const digitRec = createCharRecognizer('digits');
+    const res7 = digitRec.recognize(renderSampleChar('7', 64));
+    const res0 = digitRec.recognize(renderSampleChar('0', 64));
+
+    const trace7 = res7.networkTrace;
+    expect(trace7).toBeDefined();
+    expect(trace7.inputNodes).toHaveLength(16);
+    expect(trace7.hiddenNodes).toHaveLength(12);
+    expect(trace7.outputNodes).toHaveLength(10);
+    expect(trace7.outputNodes.map((n) => n.char)).toEqual(DIGITS);
+    expect(trace7.outputNodes.filter((n) => n.isWinner)).toHaveLength(1);
+    expect(trace7.outputNodes.find((n) => n.isWinner).char).toBe('7');
+
+    for (const node of trace7.inputNodes) {
+      expect(node.activation).toBeGreaterThanOrEqual(0);
+      expect(node.activation).toBeLessThanOrEqual(1);
+    }
+    for (const node of trace7.hiddenNodes) {
+      expect(node.activation).toBeGreaterThanOrEqual(0);
+      expect(node.activation).toBeLessThanOrEqual(1);
+      expect(typeof node.label).toBe('string');
+      expect(typeof node.shortLabel).toBe('string');
+      expect(typeof node.description).toBe('string');
+    }
+
+    expect(trace7.inputToHiddenEdges.length).toBeGreaterThanOrEqual(35);
+    expect(trace7.inputToHiddenEdges.length).toBeLessThanOrEqual(52);
+    for (const edge of trace7.inputToHiddenEdges) {
+      expect(edge.from).toBeGreaterThanOrEqual(0);
+      expect(edge.from).toBeLessThan(16);
+      expect(edge.to).toBeGreaterThanOrEqual(0);
+      expect(edge.to).toBeLessThan(12);
+      expect(edge.weight).toBeGreaterThanOrEqual(-1);
+      expect(edge.weight).toBeLessThanOrEqual(1);
+    }
+
+    expect(trace7.hiddenToOutputEdges.length).toBe(40);
+    for (const edge of trace7.hiddenToOutputEdges) {
+      expect(edge.from).toBeGreaterThanOrEqual(0);
+      expect(edge.from).toBeLessThan(12);
+      expect(edge.to).toBeGreaterThanOrEqual(0);
+      expect(edge.to).toBeLessThan(10);
+      expect(edge.weight).toBeGreaterThanOrEqual(-1);
+      expect(edge.weight).toBeLessThanOrEqual(1);
+    }
+
+    // Distinct interpretable activations: '7' vs '0'
+    const getHidden = (trace, id) => trace.hiddenNodes.find((n) => n.id === id).activation;
+    expect(getHidden(trace7, 'topBar')).toBeGreaterThan(0.35);
+    expect(getHidden(trace7, 'diagSlash')).toBeGreaterThan(getHidden(res0.networkTrace, 'diagSlash'));
+    expect(getHidden(res0.networkTrace, 'bottomLoop')).toBeGreaterThan(
+      getHidden(trace7, 'bottomLoop'),
+    );
+
+    // Letters charset returns top 10 highest-probability letters
+    const letterRec = createCharRecognizer('letters');
+    const resL = letterRec.recognize(renderSampleChar('L', 64));
+    expect(resL.networkTrace.outputNodes).toHaveLength(10);
+    expect(resL.networkTrace.outputNodes[0].char).toBe('L');
+    expect(resL.networkTrace.outputNodes[0].isWinner).toBe(true);
+    expect(getHidden(resL.networkTrace, 'leftStem')).toBeGreaterThan(0.35);
+    expect(getHidden(resL.networkTrace, 'bottomBar')).toBeGreaterThan(0.35);
+  });
 });

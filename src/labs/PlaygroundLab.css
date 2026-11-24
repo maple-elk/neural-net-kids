@@ -312,7 +312,7 @@
 
 .pg-svg-stage {
   flex: 1;
-  min-height: 270px;
+  min-height: 296px;
   background: linear-gradient(180deg, #fafbff 0%, #f8fafc 100%);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
@@ -320,13 +320,58 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
+  gap: 6px;
   overflow: hidden;
 }
 
 .pg-network-svg {
   width: 100%;
-  height: 250px;
+  height: 276px;
   display: block;
+}
+
+.pg-probe-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #312e81;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+.pg-probe-banner-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.pg-probe-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.pg-probe-pill.is-teal {
+  background: #e0f2fe;
+  color: #0369a1;
+  border: 1px solid #7dd3fc;
+}
+
+.pg-probe-pill.is-coral {
+  background: #ffedd5;
+  color: #c2410c;
+  border: 1px solid #fdba74;
 }
 
 .pg-neuron-steppers {
