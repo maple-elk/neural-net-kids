@@ -520,53 +520,156 @@
   border: 1px solid #fcd34d;
 }
 
-.vision-sample-scenes {
+.vision-xray-pair {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.vision-scene-btn {
+.vision-viewport-card {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+
+.vision-viewport-label {
+  display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 10px 8px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-surface);
-  color: var(--text-primary);
-  font-size: 0.8rem;
+  justify-content: space-between;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 0.88rem;
   font-weight: 700;
-  transition: all 0.14s ease;
+  color: var(--text-primary);
 }
 
-.vision-scene-btn:hover {
-  border-color: var(--stage-4);
-  background: #ecfdf5;
+.vision-xray-subtabs {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--bg-subtle);
+  padding: 3px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
 }
 
-.vision-scene-btn.is-active {
-  border-color: var(--stage-4);
-  background: #d1fae5;
-  color: #065f46;
+.vision-xray-subbtn {
+  border: none;
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.vision-xray-subbtn.is-active {
+  background: var(--stage-4);
+  color: #ffffff;
+}
+
+.vision-threshold-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.vision-threshold-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.vision-threshold-slider {
+  width: 100%;
+  accent-color: var(--stage-4);
 }
 
 .vision-detection-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .vision-detection-item {
+  width: 100%;
+  text-align: left;
   background: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
+  border: 2px solid var(--border-subtle);
   border-radius: var(--radius-md);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  transition: border-color 0.14s ease, background-color 0.14s ease, transform 0.12s ease;
+}
+
+.vision-detection-item:hover {
+  border-color: var(--stage-4);
+  transform: translateY(-1px);
+}
+
+.vision-detection-item.is-selected {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.vision-object-inspector {
+  background: #0f172a;
+  color: #f8fafc;
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vision-inspector-crops {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.vision-inspector-crop-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: #cbd5e1;
+}
+
+.vision-inspector-crop-box canvas {
+  width: 100%;
+  max-width: 112px;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  border: 1px solid #334155;
+  background: #020617;
+  object-fit: contain;
+}
+
+.vision-pipeline-step-btn {
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+.vision-pipeline-step-btn:hover {
+  border-color: var(--stage-4);
+  transform: translateY(-1px);
+}
+
+.vision-pipeline-step-btn.is-selected {
+  background: #ecfdf5;
+  border: 2px solid var(--stage-4);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.18);
 }
 
 .vision-detection-top {
@@ -1128,6 +1231,7 @@
   .vision-cnn-workspace,
   .vision-char-workspace,
   .vision-stage-grid,
+  .vision-xray-pair,
   .vision-trainer-grid {
     grid-template-columns: 1fr;
   }
@@ -1138,8 +1242,7 @@
 }
 
 @media (max-width: 640px) {
-  .vision-pipeline-strip,
-  .vision-sample-scenes {
+  .vision-pipeline-strip {
     grid-template-columns: 1fr;
   }
 }

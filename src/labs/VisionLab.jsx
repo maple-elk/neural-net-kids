@@ -9,7 +9,6 @@ import {
   Eraser,
   Eye,
   Grid3X3,
-  Image as ImageIcon,
   Pause,
   PenTool,
   Play,
@@ -102,256 +101,18 @@ function getFilterVerdict(kernelId, value) {
 }
 
 /* ==========================================================================
-   Built-in Sample Canvas Scenes (Camera-Free Fallback for Tab 2)
+   Live CNN X-Ray & Bounding Box Rendering Helpers (Tab 3: Live Camera AI)
    ========================================================================== */
 
-const SAMPLE_SCENES = [
-  {
-    id: 'desk',
-    label: 'Study Desk',
-    emoji: '💻',
-    fallbackDetections: [
-      { class: 'laptop', score: 0.92, bbox: [130, 125, 250, 185] },
-      { class: 'cup', score: 0.84, bbox: [420, 215, 78, 95] },
-      { class: 'book', score: 0.78, bbox: [50, 245, 110, 68] },
-    ],
-  },
-  {
-    id: 'street',
-    label: 'City Street',
-    emoji: '🚗',
-    fallbackDetections: [
-      { class: 'car', score: 0.94, bbox: [120, 235, 255, 115] },
-      { class: 'traffic light', score: 0.87, bbox: [465, 55, 58, 130] },
-      { class: 'stop sign', score: 0.81, bbox: [55, 120, 76, 76] },
-    ],
-  },
-  {
-    id: 'park',
-    label: 'Sunny Park',
-    emoji: '🚲',
-    fallbackDetections: [
-      { class: 'bicycle', score: 0.91, bbox: [115, 215, 210, 130] },
-      { class: 'bench', score: 0.83, bbox: [365, 235, 195, 105] },
-      { class: 'sports ball', score: 0.76, bbox: [315, 315, 52, 52] },
-    ],
-  },
-]
-
-function drawSampleScene(canvas, sceneId) {
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  const W = 600
-  const H = 450
-  canvas.width = W
-  canvas.height = H
-
-  if (sceneId === 'desk') {
-    // Wall & Desk background
-    ctx.fillStyle = '#e2e8f0'
-    ctx.fillRect(0, 0, W, 285)
-    ctx.fillStyle = '#b45309'
-    ctx.fillRect(0, 285, W, H - 285)
-    ctx.fillStyle = '#92400e'
-    ctx.fillRect(0, 285, W, 10)
-
-    // Window light
-    ctx.fillStyle = '#bae6fd'
-    ctx.fillRect(40, 35, 140, 120)
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 6
-    ctx.strokeRect(40, 35, 140, 120)
-
-    // Laptop screen
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect(150, 130, 210, 145)
-    ctx.fillStyle = '#38bdf8'
-    ctx.fillRect(162, 142, 186, 118)
-    // Code lines on screen
-    ctx.fillStyle = '#ffffff'
-    ctx.fillRect(178, 165, 95, 10)
-    ctx.fillStyle = '#fef08a'
-    ctx.fillRect(178, 186, 130, 10)
-    ctx.fillStyle = '#bbf7d0'
-    ctx.fillRect(178, 207, 80, 10)
-    // Laptop base
-    ctx.fillStyle = '#64748b'
-    ctx.beginPath()
-    ctx.moveTo(132, 275)
-    ctx.lineTo(378, 275)
-    ctx.lineTo(395, 305)
-    ctx.lineTo(115, 305)
-    ctx.closePath()
-    ctx.fill()
-
-    // Coffee Cup
-    ctx.fillStyle = '#ef4444'
-    ctx.fillRect(428, 225, 58, 78)
-    ctx.strokeStyle = '#ef4444'
-    ctx.lineWidth = 8
-    ctx.beginPath()
-    ctx.arc(486, 262, 16, -Math.PI / 2, Math.PI / 2)
-    ctx.stroke()
-    ctx.fillStyle = '#451a03'
-    ctx.beginPath()
-    ctx.ellipse(457, 225, 29, 8, 0, 0, Math.PI * 2)
-    ctx.fill()
-
-    // Book
-    ctx.fillStyle = '#4f46e5'
-    ctx.fillRect(52, 255, 102, 48)
-    ctx.fillStyle = '#f8fafc'
-    ctx.fillRect(60, 263, 86, 32)
-    ctx.fillStyle = '#4338ca'
-    ctx.fillRect(52, 255, 16, 48)
-    return
-  }
-
-  if (sceneId === 'street') {
-    // Sky & road
-    ctx.fillStyle = '#7dd3fc'
-    ctx.fillRect(0, 0, W, 240)
-    ctx.fillStyle = '#cbd5e1'
-    ctx.fillRect(0, 240, W, 50)
-    ctx.fillStyle = '#334155'
-    ctx.fillRect(0, 290, W, H - 290)
-    // Road stripes
-    ctx.fillStyle = '#facc15'
-    for (let x = 25; x < W; x += 95) {
-      ctx.fillRect(x, 365, 52, 10)
-    }
-
-    // Stop sign
-    ctx.fillStyle = '#64748b'
-    ctx.fillRect(88, 185, 10, 105)
-    ctx.fillStyle = '#dc2626'
-    ctx.beginPath()
-    const cx = 93
-    const cy = 158
-    const r = 34
-    for (let i = 0; i < 8; i++) {
-      const a = (Math.PI / 8) + (i * Math.PI) / 4
-      const px = cx + r * Math.cos(a)
-      const py = cy + r * Math.sin(a)
-      if (i === 0) ctx.moveTo(px, py)
-      else ctx.lineTo(px, py)
-    }
-    ctx.closePath()
-    ctx.fill()
-    ctx.strokeStyle = '#ffffff'
-    ctx.lineWidth = 3
-    ctx.stroke()
-    ctx.fillStyle = '#ffffff'
-    ctx.font = 'bold 17px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText('STOP', cx, cy + 6)
-
-    // Traffic light
-    ctx.fillStyle = '#475569'
-    ctx.fillRect(490, 175, 10, 115)
-    ctx.fillStyle = '#1e293b'
-    ctx.fillRect(470, 62, 50, 118)
-    const lights = ['#ef4444', '#facc15', '#22c55e']
-    lights.forEach((color, idx) => {
-      ctx.fillStyle = color
-      ctx.beginPath()
-      ctx.arc(495, 88 + idx * 34, 12, 0, Math.PI * 2)
-      ctx.fill()
-    })
-
-    // Car
-    ctx.fillStyle = '#2563eb'
-    ctx.fillRect(130, 285, 235, 52)
-    ctx.beginPath()
-    ctx.moveTo(165, 285)
-    ctx.lineTo(195, 242)
-    ctx.lineTo(300, 242)
-    ctx.lineTo(335, 285)
-    ctx.closePath()
-    ctx.fill()
-    // Car windows
-    ctx.fillStyle = '#bae6fd'
-    ctx.fillRect(202, 250, 42, 28)
-    ctx.fillRect(252, 250, 44, 28)
-    // Wheels
-    ctx.fillStyle = '#0f172a'
-    ctx.beginPath()
-    ctx.arc(180, 338, 26, 0, Math.PI * 2)
-    ctx.arc(315, 338, 26, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#cbd5e1'
-    ctx.beginPath()
-    ctx.arc(180, 338, 11, 0, Math.PI * 2)
-    ctx.arc(315, 338, 11, 0, Math.PI * 2)
-    ctx.fill()
-    return
-  }
-
-  // Park scene
-  ctx.fillStyle = '#bae6fd'
-  ctx.fillRect(0, 0, W, 240)
-  // Sun
-  ctx.fillStyle = '#fde047'
-  ctx.beginPath()
-  ctx.arc(520, 75, 38, 0, Math.PI * 2)
-  ctx.fill()
-  // Grass
-  ctx.fillStyle = '#4ade80'
-  ctx.fillRect(0, 240, W, H - 240)
-  // Path
-  ctx.fillStyle = '#e2e8f0'
-  ctx.fillRect(0, 335, W, 70)
-
-  // Trees
-  ctx.fillStyle = '#92400e'
-  ctx.fillRect(75, 165, 22, 85)
-  ctx.fillStyle = '#16a34a'
-  ctx.beginPath()
-  ctx.arc(86, 140, 48, 0, Math.PI * 2)
-  ctx.fill()
-
-  // Park Bench
-  ctx.fillStyle = '#b45309'
-  ctx.fillRect(375, 250, 175, 22)
-  ctx.fillRect(375, 285, 175, 18)
-  ctx.fillStyle = '#334155'
-  ctx.fillRect(390, 272, 10, 62)
-  ctx.fillRect(525, 272, 10, 62)
-
-  // Bicycle
-  ctx.strokeStyle = '#1e293b'
-  ctx.lineWidth = 6
-  ctx.beginPath()
-  ctx.arc(158, 308, 34, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.arc(278, 308, 34, 0, Math.PI * 2)
-  ctx.stroke()
-  ctx.strokeStyle = '#ef4444'
-  ctx.lineWidth = 6
-  ctx.beginPath()
-  ctx.moveTo(158, 308)
-  ctx.lineTo(208, 252)
-  ctx.lineTo(264, 252)
-  ctx.lineTo(278, 308)
-  ctx.moveTo(208, 252)
-  ctx.lineTo(215, 308)
-  ctx.lineTo(158, 308)
-  ctx.stroke()
-
-  // Sports ball
-  ctx.fillStyle = '#f97316'
-  ctx.beginPath()
-  ctx.arc(341, 341, 22, 0, Math.PI * 2)
-  ctx.fill()
-  ctx.strokeStyle = '#ffffff'
-  ctx.lineWidth = 3
-  ctx.beginPath()
-  ctx.arc(341, 341, 22, 0, Math.PI * 2)
-  ctx.stroke()
-}
-
-function drawBoundingBoxes(ctx, detections, canvasW, canvasH, sourceW, sourceH) {
+function drawBoundingBoxes(
+  ctx,
+  detections,
+  canvasW,
+  canvasH,
+  sourceW,
+  sourceH,
+  selectedIdx = null,
+) {
   const scaleX = sourceW > 0 ? canvasW / sourceW : 1
   const scaleY = sourceH > 0 ? canvasH / sourceH : 1
   const palette = ['#10b981', '#0ea5e9', '#f59e0b', '#ec4899', '#8b5cf6']
@@ -362,12 +123,21 @@ function drawBoundingBoxes(ctx, detections, canvasW, canvasH, sourceW, sourceH) 
     const y = by * scaleY
     const w = bw * scaleX
     const h = bh * scaleY
-    const color = palette[idx % palette.length]
+    const isSelected = selectedIdx === idx
+    const color = isSelected ? '#f59e0b' : palette[idx % palette.length]
     const pct = Math.round(det.score * 100)
     const label = `${det.class} ${pct}%`
 
+    if (isSelected) {
+      ctx.save()
+      ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)'
+      ctx.lineWidth = 8
+      ctx.strokeRect(x, y, w, h)
+      ctx.restore()
+    }
+
     ctx.strokeStyle = color
-    ctx.lineWidth = 3
+    ctx.lineWidth = isSelected ? 4 : 3
     ctx.strokeRect(x, y, w, h)
 
     ctx.font = 'bold 14px "Plus Jakarta Sans", sans-serif'
@@ -380,6 +150,274 @@ function drawBoundingBoxes(ctx, detections, canvasW, canvasH, sourceW, sourceH) 
     ctx.fillStyle = '#ffffff'
     ctx.fillText(label, x + 7, pillY + 17)
   })
+}
+
+function computeSobelEdges(srcData, w, h, edgeMode = 'all') {
+  const gray = new Float32Array(w * h)
+  for (let i = 0; i < w * h; i++) {
+    const p = i * 4
+    gray[i] = 0.299 * srcData[p] + 0.587 * srcData[p + 1] + 0.114 * srcData[p + 2]
+  }
+  const out = new Uint8ClampedArray(w * h * 4)
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const tl = gray[(y - 1) * w + (x - 1)]
+      const tc = gray[(y - 1) * w + x]
+      const tr = gray[(y - 1) * w + (x + 1)]
+      const ml = gray[y * w + (x - 1)]
+      const mr = gray[y * w + (x + 1)]
+      const bl = gray[(y + 1) * w + (x - 1)]
+      const bc = gray[(y + 1) * w + x]
+      const br = gray[(y + 1) * w + (x + 1)]
+
+      const gx = -tl + tr - 2 * ml + 2 * mr - bl + br
+      const gy = -tl - 2 * tc - tr + bl + 2 * bc + br
+
+      let mag = 0
+      if (edgeMode === 'vertical') mag = Math.abs(gx)
+      else if (edgeMode === 'horizontal') mag = Math.abs(gy)
+      else mag = Math.hypot(gx, gy)
+
+      const norm = Math.min(1, mag / 240)
+      const oIdx = (y * w + x) * 4
+      out[oIdx] = Math.round(15 + norm * 32)
+      out[oIdx + 1] = Math.round(23 + norm * 222)
+      out[oIdx + 2] = Math.round(42 + norm * 145)
+      out[oIdx + 3] = 255
+    }
+  }
+  return out
+}
+
+function renderCnnXrayView(
+  xrayCanvas,
+  source,
+  sourceW,
+  sourceH,
+  { layer, edgeMode, rawDetections, filteredDetections, threshold },
+) {
+  if (!xrayCanvas || !source || sourceW <= 0 || sourceH <= 0) return
+  const W = 240
+  const H = 180
+  if (xrayCanvas.width !== W || xrayCanvas.height !== H) {
+    xrayCanvas.width = W
+    xrayCanvas.height = H
+  }
+  const ctx = xrayCanvas.getContext('2d', { willReadFrequently: true })
+  if (!ctx) return
+
+  // Draw source frame downsampled to 240x180
+  ctx.drawImage(source, 0, 0, W, H)
+  const frameImg = ctx.getImageData(0, 0, W, H)
+  const data = frameImg.data
+
+  if (layer === 'rgb') {
+    const out = ctx.createImageData(W, H)
+    const dst = out.data
+    const third = Math.floor(W / 3)
+    let rSum = 0
+    let gSum = 0
+    let bSum = 0
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4
+        const r = data[i]
+        const g = data[i + 1]
+        const b = data[i + 2]
+        rSum += r
+        gSum += g
+        bSum += b
+        if (x < third) {
+          dst[i] = r
+          dst[i + 1] = Math.round(r * 0.12)
+          dst[i + 2] = Math.round(r * 0.12)
+        } else if (x < third * 2) {
+          dst[i] = Math.round(g * 0.12)
+          dst[i + 1] = g
+          dst[i + 2] = Math.round(g * 0.18)
+        } else {
+          dst[i] = Math.round(b * 0.12)
+          dst[i + 1] = Math.round(b * 0.28)
+          dst[i + 2] = b
+        }
+        dst[i + 3] = 255
+      }
+    }
+    ctx.putImageData(out, 0, 0)
+    const n = W * H
+    const labels = [
+      { txt: `R ${Math.round(rSum / n)}`, x: third * 0.5, col: '#fca5a5' },
+      { txt: `G ${Math.round(gSum / n)}`, x: third * 1.5, col: '#6ee7b7' },
+      { txt: `B ${Math.round(bSum / n)}`, x: third * 2.5, col: '#93c5fd' },
+    ]
+    ctx.strokeStyle = 'rgba(255,255,255,0.45)'
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.moveTo(third, 0)
+    ctx.lineTo(third, H)
+    ctx.moveTo(third * 2, 0)
+    ctx.lineTo(third * 2, H)
+    ctx.stroke()
+
+    ctx.font = 'bold 11px "JetBrains Mono", monospace'
+    ctx.textAlign = 'center'
+    labels.forEach((l) => {
+      ctx.fillStyle = 'rgba(15,23,42,0.78)'
+      ctx.fillRect(l.x - 28, 6, 56, 18)
+      ctx.fillStyle = l.col
+      ctx.fillText(l.txt, l.x, 19)
+    })
+    ctx.textAlign = 'start'
+    return
+  }
+
+  if (layer === 'edges') {
+    const edgePixels = computeSobelEdges(data, W, H, edgeMode)
+    const edgeImg = new ImageData(edgePixels, W, H)
+    ctx.putImageData(edgeImg, 0, 0)
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.78)'
+    ctx.fillRect(6, 6, 118, 20)
+    ctx.fillStyle = '#34d399'
+    ctx.font = 'bold 10px "JetBrains Mono", monospace'
+    const modeLabel =
+      edgeMode === 'vertical'
+        ? 'SOBEL: VERTICAL'
+        : edgeMode === 'horizontal'
+          ? 'SOBEL: HORIZ.'
+          : 'SOBEL: ALL EDGES'
+    ctx.fillText(modeLabel, 12, 19)
+    return
+  }
+
+  if (layer === 'grid') {
+    // Dim source image underneath 8x6 SSD anchor grid
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.52)'
+    ctx.fillRect(0, 0, W, H)
+
+    const cols = 8
+    const rows = 6
+    const cellW = W / cols
+    const cellH = H / rows
+    const scaleX = W / sourceW
+    const scaleY = H / sourceH
+
+    // Compute simple local contrast energy per cell
+    const edgePixels = computeSobelEdges(data, W, H, 'all')
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const cx = c * cellW
+        const cy = r * cellH
+        let energy = 0
+        let count = 0
+        for (let py = Math.floor(cy); py < Math.floor(cy + cellH); py += 2) {
+          for (let px = Math.floor(cx); px < Math.floor(cx + cellW); px += 2) {
+            energy += edgePixels[(py * W + px) * 4 + 1]
+            count++
+          }
+        }
+        const normE = count > 0 ? Math.min(1, energy / (count * 165)) : 0
+
+        const overlapsDet = filteredDetections.some((d) => {
+          const [bx, by, bw, bh] = d.bbox
+          const dx1 = bx * scaleX
+          const dy1 = by * scaleY
+          const dx2 = (bx + bw) * scaleX
+          const dy2 = (by + bh) * scaleY
+          return dx1 < cx + cellW && dx2 > cx && dy1 < cy + cellH && dy2 > cy
+        })
+
+        if (overlapsDet) {
+          ctx.fillStyle = `rgba(16, 185, 129, ${(0.22 + normE * 0.38).toFixed(2)})`
+          ctx.fillRect(cx + 1, cy + 1, cellW - 2, cellH - 2)
+          ctx.strokeStyle = '#34d399'
+          ctx.lineWidth = 1.5
+          ctx.strokeRect(cx + 1, cy + 1, cellW - 2, cellH - 2)
+        } else {
+          ctx.fillStyle = `rgba(56, 189, 248, ${(normE * 0.25).toFixed(2)})`
+          ctx.fillRect(cx + 1, cy + 1, cellW - 2, cellH - 2)
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)'
+          ctx.lineWidth = 0.8
+          ctx.strokeRect(cx, cy, cellW, cellH)
+        }
+      }
+    }
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.82)'
+    ctx.fillRect(6, 6, 154, 20)
+    ctx.fillStyle = '#6ee7b7'
+    ctx.font = 'bold 10px "JetBrains Mono", monospace'
+    ctx.fillText('8×6 SSD ANCHOR HEATMAP', 12, 19)
+    return
+  }
+
+  // Layer 4: Object Boxes & NMS (show suppressed/below-threshold dashed vs winners solid)
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.28)'
+  ctx.fillRect(0, 0, W, H)
+  const scaleX = W / sourceW
+  const scaleY = H / sourceH
+
+  rawDetections.forEach((det) => {
+    const [bx, by, bw, bh] = det.bbox
+    const x = bx * scaleX
+    const y = by * scaleY
+    const w = bw * scaleX
+    const h = bh * scaleY
+    const passed = det.score >= threshold
+
+    ctx.save()
+    if (passed) {
+      ctx.strokeStyle = '#10b981'
+      ctx.lineWidth = 2.5
+      ctx.strokeRect(x, y, w, h)
+      ctx.fillStyle = '#10b981'
+      ctx.font = 'bold 9.5px "JetBrains Mono", monospace'
+      ctx.fillText(`${det.class} ${Math.round(det.score * 100)}%`, x + 2, Math.max(11, y - 3))
+    } else {
+      ctx.setLineDash([4, 3])
+      ctx.strokeStyle = 'rgba(251, 113, 133, 0.7)'
+      ctx.lineWidth = 1.4
+      ctx.strokeRect(x, y, w, h)
+    }
+    ctx.restore()
+  })
+
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.82)'
+  ctx.fillRect(6, 6, 168, 20)
+  ctx.fillStyle = '#f8fafc'
+  ctx.font = 'bold 10px "JetBrains Mono", monospace'
+  ctx.fillText(`NMS FILTER ≥ ${Math.round(threshold * 100)}%`, 12, 19)
+}
+
+function renderObjectCropInspector(rgbCanvas, edgeCanvas, source, sourceW, sourceH, bbox) {
+  if (!rgbCanvas || !edgeCanvas || !source || !bbox) return
+  const [bx, by, bw, bh] = bbox
+  const sx = Math.max(0, Math.floor(bx))
+  const sy = Math.max(0, Math.floor(by))
+  const sw = Math.max(4, Math.min(sourceW - sx, Math.ceil(bw)))
+  const sh = Math.max(4, Math.min(sourceH - sy, Math.ceil(bh)))
+
+  const size = 96
+  rgbCanvas.width = size
+  rgbCanvas.height = size
+  edgeCanvas.width = size
+  edgeCanvas.height = size
+
+  const rCtx = rgbCanvas.getContext('2d', { willReadFrequently: true })
+  const eCtx = edgeCanvas.getContext('2d', { willReadFrequently: true })
+  if (!rCtx || !eCtx) return
+
+  rCtx.fillStyle = '#020617'
+  rCtx.fillRect(0, 0, size, size)
+  const scale = Math.min(size / sw, size / sh)
+  const dw = Math.round(sw * scale)
+  const dh = Math.round(sh * scale)
+  const dx = Math.floor((size - dw) / 2)
+  const dy = Math.floor((size - dh) / 2)
+  rCtx.drawImage(source, sx, sy, sw, sh, dx, dy, dw, dh)
+
+  const cropImg = rCtx.getImageData(0, 0, size, size)
+  const edgePixels = computeSobelEdges(cropImg.data, size, size, 'all')
+  eCtx.putImageData(new ImageData(edgePixels, size, size), 0, 0)
 }
 
 /* ==========================================================================
@@ -1106,10 +1144,14 @@ export default function VisionLab() {
   }
 
   /* ------------------------------------------------------------------------
-     Tab 2 State: Live Camera Vision (Lazy-loaded TFJS + COCO-SSD)
+     Tab 3 State: Live Camera Vision & CNN X-Ray (Lazy-loaded TFJS + COCO-SSD)
      ------------------------------------------------------------------------ */
   const videoRef = useRef(null)
   const canvasRef = useRef(null)
+  const xrayCanvasRef = useRef(null)
+  const cropRgbCanvasRef = useRef(null)
+  const cropEdgeCanvasRef = useRef(null)
+  const uploadedImgRef = useRef(null)
   const fileInputRef = useRef(null)
   const modelRef = useRef(null)
   const streamRef = useRef(null)
@@ -1118,12 +1160,72 @@ export default function VisionLab() {
 
   const [visionStatus, setVisionStatus] = useState('idle') // idle | loading-model | live | photo | error
   const [statusMessage, setStatusMessage] = useState(
-    'Click "Start Camera AI", pick a Sample Scene, or upload a photo to run the neural network.',
+    'Click "Start Live Camera" or "Upload Photo" to run COCO-SSD and inspect every CNN layer live.',
   )
   const [cameraError, setCameraError] = useState('')
-  const [detections, setDetections] = useState([])
-  const [isDemoFallback, setIsDemoFallback] = useState(false)
-  const [activeSceneId, setActiveSceneId] = useState(null)
+  const [rawDetections, setRawDetections] = useState([])
+  const [confThreshold, setConfThreshold] = useState(0.45)
+  const [xrayLayer, setXrayLayer] = useState('edges') // 'rgb' | 'edges' | 'grid' | 'boxes'
+  const [edgeFilterMode, setEdgeFilterMode] = useState('all') // 'all' | 'vertical' | 'horizontal'
+  const [selectedDetIdx, setSelectedDetIdx] = useState(null)
+
+  const confThresholdRef = useRef(confThreshold)
+  const xrayLayerRef = useRef(xrayLayer)
+  const edgeFilterModeRef = useRef(edgeFilterMode)
+  const selectedDetIdxRef = useRef(selectedDetIdx)
+
+  const filteredDetections = useMemo(
+    () => rawDetections.filter((d) => d.score >= confThreshold),
+    [rawDetections, confThreshold],
+  )
+
+  useEffect(() => {
+    confThresholdRef.current = confThreshold
+    xrayLayerRef.current = xrayLayer
+    edgeFilterModeRef.current = edgeFilterMode
+    selectedDetIdxRef.current = selectedDetIdx
+  }, [confThreshold, xrayLayer, edgeFilterMode, selectedDetIdx])
+
+  // Re-render photo overlays, X-Ray view, and selected object crop whenever controls change
+  useEffect(() => {
+    if (visionStatus !== 'photo' || !uploadedImgRef.current) return
+    const img = uploadedImgRef.current
+    const canvas = canvasRef.current
+    if (canvas) {
+      const ctx = canvas.getContext('2d')
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+        drawBoundingBoxes(
+          ctx,
+          filteredDetections,
+          canvas.width,
+          canvas.height,
+          img.width,
+          img.height,
+          selectedDetIdx,
+        )
+      }
+    }
+    renderCnnXrayView(xrayCanvasRef.current, img, img.width, img.height, {
+      layer: xrayLayer,
+      edgeMode: edgeFilterMode,
+      rawDetections,
+      filteredDetections,
+      threshold: confThreshold,
+    })
+    const activeDet =
+      selectedDetIdx !== null ? filteredDetections[selectedDetIdx] || null : null
+    if (activeDet) {
+      renderObjectCropInspector(
+        cropRgbCanvasRef.current,
+        cropEdgeCanvasRef.current,
+        img,
+        img.width,
+        img.height,
+        activeDet.bbox,
+      )
+    }
+  }, [visionStatus, rawDetections, filteredDetections, confThreshold, xrayLayer, edgeFilterMode, selectedDetIdx])
 
   const stopCamera = useCallback(() => {
     if (rafRef.current) {
@@ -1388,13 +1490,35 @@ export default function VisionLab() {
             canvas.height = vh
           }
           const ctx = canvas.getContext('2d')
-          const preds = await modelRef.current.detect(video)
+          const preds = await modelRef.current.detect(video, 20, 0.1)
+          const threshold = confThresholdRef.current
+          const filtered = preds.filter((p) => p.score >= threshold)
+          const activeSel = selectedDetIdxRef.current
+
           if (ctx) {
             ctx.clearRect(0, 0, canvas.width, canvas.height)
-            drawBoundingBoxes(ctx, preds, canvas.width, canvas.height, vw, vh)
+            drawBoundingBoxes(ctx, filtered, canvas.width, canvas.height, vw, vh, activeSel)
           }
-          setDetections(preds)
-          setIsDemoFallback(false)
+
+          renderCnnXrayView(xrayCanvasRef.current, video, vw, vh, {
+            layer: xrayLayerRef.current,
+            edgeMode: edgeFilterModeRef.current,
+            rawDetections: preds,
+            filteredDetections: filtered,
+            threshold,
+          })
+
+          if (activeSel !== null && filtered[activeSel]) {
+            renderObjectCropInspector(
+              cropRgbCanvasRef.current,
+              cropEdgeCanvasRef.current,
+              video,
+              vw,
+              vh,
+              filtered[activeSel].bbox,
+            )
+          }
+          setRawDetections(preds)
         } catch {
           // Ignore transient frame errors while stopping
         } finally {
@@ -1408,12 +1532,12 @@ export default function VisionLab() {
 
   const handleStartCamera = async () => {
     setCameraError('')
-    setActiveSceneId(null)
-    setIsDemoFallback(false)
+    setSelectedDetIdx(null)
+    uploadedImgRef.current = null
     stopCamera()
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
-      setCameraError('No webcam detected in this browser — try a Sample Scene or Upload a Photo!')
+      setCameraError('No webcam detected in this browser — upload any photo to explore the live CNN X-Ray!')
       setVisionStatus('idle')
       return
     }
@@ -1438,71 +1562,10 @@ export default function VisionLab() {
       stopCamera()
       const msg =
         err?.name === 'NotAllowedError'
-          ? 'Camera permission was denied — no problem! Try a Sample Scene or Upload a Photo below.'
-          : 'Camera unavailable on this device — try a Sample Scene or Upload a Photo below!'
+          ? 'Camera permission was denied — upload any photo to explore the live CNN X-Ray!'
+          : 'Camera unavailable on this device — upload any photo to explore the live CNN X-Ray!'
       setCameraError(msg)
       setVisionStatus('idle')
-    }
-  }
-
-  const handleAnalyzeSampleScene = async (scene) => {
-    stopCamera()
-    setCameraError('')
-    setActiveSceneId(scene.id)
-
-    const canvas = canvasRef.current
-    if (!canvas) return
-    drawSampleScene(canvas, scene.id)
-
-    try {
-      const model = await ensureModelLoaded()
-      const preds = await model.detect(canvas)
-      const ctx = canvas.getContext('2d')
-      drawSampleScene(canvas, scene.id)
-      if (preds.length > 0) {
-        if (ctx) drawBoundingBoxes(ctx, preds, canvas.width, canvas.height, canvas.width, canvas.height)
-        setDetections(preds)
-        setIsDemoFallback(false)
-        setVisionStatus('photo')
-        setStatusMessage(`COCO-SSD detected ${preds.length} object(s) in "${scene.label}"!`)
-      } else {
-        // Synthetic flat illustration may not trigger photo-trained COCO-SSD; show annotated demo preview
-        if (ctx) {
-          drawBoundingBoxes(
-            ctx,
-            scene.fallbackDetections,
-            canvas.width,
-            canvas.height,
-            canvas.width,
-            canvas.height,
-          )
-        }
-        setDetections(scene.fallbackDetections)
-        setIsDemoFallback(true)
-        setVisionStatus('photo')
-        setStatusMessage(
-          `COCO-SSD ran on "${scene.label}" (showing illustrative bounding boxes — upload a real photo or use webcam for live photographic detection!).`,
-        )
-      }
-    } catch {
-      const ctx = canvas.getContext('2d')
-      drawSampleScene(canvas, scene.id)
-      if (ctx) {
-        drawBoundingBoxes(
-          ctx,
-          scene.fallbackDetections,
-          canvas.width,
-          canvas.height,
-          canvas.width,
-          canvas.height,
-        )
-      }
-      setDetections(scene.fallbackDetections)
-      setIsDemoFallback(true)
-      setVisionStatus('photo')
-      setStatusMessage(
-        'Offline preview mode: showing simulated bounding boxes (connect online to download COCO-SSD weights).',
-      )
     }
   }
 
@@ -1511,12 +1574,13 @@ export default function VisionLab() {
     if (!file) return
     stopCamera()
     setCameraError('')
-    setActiveSceneId(null)
+    setSelectedDetIdx(null)
 
     const reader = new FileReader()
     reader.onload = () => {
       const img = new window.Image()
       img.onload = async () => {
+        uploadedImgRef.current = img
         const canvas = canvasRef.current
         if (!canvas) return
         const maxW = 640
@@ -1528,21 +1592,17 @@ export default function VisionLab() {
 
         try {
           const model = await ensureModelLoaded()
-          const preds = await model.detect(img)
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
-            drawBoundingBoxes(ctx, preds, canvas.width, canvas.height, img.width, img.height)
-          }
-          setDetections(preds)
-          setIsDemoFallback(false)
+          const preds = await model.detect(img, 20, 0.1)
+          setRawDetections(preds)
           setVisionStatus('photo')
+          const passed = preds.filter((p) => p.score >= confThresholdRef.current).length
           setStatusMessage(
             preds.length > 0
-              ? `COCO-SSD found ${preds.length} object(s) in your photo!`
-              : 'COCO-SSD ran on your photo but found no confident objects (try a clearer photo of everyday items!).',
+              ? `COCO-SSD proposed ${preds.length} candidate box(es) (${passed} above ${Math.round(confThresholdRef.current * 100)}%).`
+              : 'COCO-SSD ran on your photo but found no candidate objects — try a photo of everyday items!',
           )
         } catch {
-          setDetections([])
+          setRawDetections([])
           setVisionStatus('error')
           setStatusMessage('Could not load the COCO-SSD model right now. Check your connection and try again.')
         }
@@ -1648,36 +1708,44 @@ export default function VisionLab() {
 
   const pipelineSteps = [
     {
-      num: 'STEP 1',
-      title: 'RGB Pixels',
-      kid: 'Every photo becomes a giant grid of Red, Green, and Blue numbers.',
-      deep: 'Input image is resized into a 3-channel H×W×3 tensor normalized to [0, 1].',
+      id: 'rgb',
+      num: 'LAYER 1',
+      title: 'Raw RGB Pixels',
+      kid: 'Splits your camera frame into Red, Green, and Blue intensity grids.',
+      deep: 'Input frame resized into a 3-channel H×W×3 RGB tensor normalized to [0, 1].',
     },
     {
-      num: 'STEP 2',
-      title: 'Edge Filters',
-      kid: 'Early layers slide 3×3 filters (just like Tab 1!) to spot lines and corners.',
-      deep: 'Depthwise-separable Conv2D layers extract low-level spatial gradients.',
+      id: 'edges',
+      num: 'LAYER 2',
+      title: 'Edge Filters (Conv1)',
+      kid: 'Slides 3×3 Sobel filters over every pixel to trace bright outlines live!',
+      deep: 'Early Conv2D layers extract directional spatial gradients (Gx, Gy, magnitude).',
     },
     {
-      num: 'STEP 3',
-      title: 'Shapes & Textures',
-      kid: 'Deeper layers combine edges into wheels, screens, handles, and faces.',
-      deep: 'Feature pyramid maps aggregate hierarchical mid- and high-level motifs.',
+      id: 'grid',
+      num: 'LAYER 3',
+      title: 'Anchor Grid (SSD)',
+      kid: 'Divides the scene into an 8×6 grid and lights up zones packed with object clues.',
+      deep: 'Single Shot Detector evaluates spatial anchor boxes & local feature energy per cell.',
     },
     {
-      num: 'STEP 4',
-      title: 'Object Probabilities',
+      id: 'boxes',
+      num: 'LAYER 4',
+      title: 'Object Boxes & NMS',
       kid:
-        detections.length > 0
-          ? `Top guess: ${detections[0].class} (${Math.round(detections[0].score * 100)}%)!`
-          : 'Final layer draws boxes and outputs confidence scores for 80 objects.',
+        filteredDetections.length > 0
+          ? `Kept ${filteredDetections.length} box(es) above ${Math.round(confThreshold * 100)}% (top: ${filteredDetections[0].class}).`
+          : 'Filters candidate boxes by confidence threshold & merges overlaps (NMS).',
       deep:
-        detections.length > 0
-          ? `SSD heads + NMS yielded ${detections.length} box(es); top=${detections[0].class} (p=${detections[0].score.toFixed(2)}).`
-          : 'Single Shot MultiBox Detector regresses bounding boxes + softmax class logits.',
+        filteredDetections.length > 0
+          ? `Threshold ≥ ${Math.round(confThreshold * 100)}% + NMS kept ${filteredDetections.length}/${rawDetections.length} candidates.`
+          : 'Applies confidence thresholding + Non-Maximum Suppression across 80 COCO classes.',
     },
   ]
+
+  const selectedDetection =
+    selectedDetIdx !== null ? filteredDetections[selectedDetIdx] || null : null
+  const activeXrayStep = pipelineSteps.find((s) => s.id === xrayLayer) || pipelineSteps[1]
 
   return (
     <div className="lab-page" style={{ '--stage-accent': stage?.color || '#10b981' }}>
@@ -2477,17 +2545,17 @@ export default function VisionLab() {
       )}
 
       {/* ====================================================================
-          TAB 2: LIVE CAMERA VISION (REAL BROWSER NEURAL NET)
+          TAB 3: LIVE CAMERA VISION & CNN X-RAY (REAL BROWSER NEURAL NET)
           ==================================================================== */}
       {activeTab === 'camera' && (
         <section className="lab-card" aria-label="Live Camera AI Object Detector">
           <div className="vision-section-header">
             <div>
-              <h2>Real Browser Object Detector (COCO-SSD)</h2>
+              <h2>Live Camera AI &amp; CNN X-Ray</h2>
               <p>
                 {isDeepDive
-                  ? 'Runs a pretrained MobileNetV2-SSD object detector locally via TensorFlow.js. Model weights are lazy-loaded only when you activate detection.'
-                  : 'Point your camera at everyday objects—or try a built-in scene or upload a photo—and watch a real neural network spot what it sees!'}
+                  ? 'Run MobileNetV2-SSD locally via TensorFlow.js and inspect live RGB channels, Sobel Conv1 edge maps, 8×6 SSD anchor energy, and confidence thresholding in real time.'
+                  : 'Start your camera or upload any photo, then click the 4 CNN X-Ray layers below to watch how a real neural network sees pixels, edges, grids, and objects!'}
               </p>
             </div>
             <span
@@ -2506,42 +2574,44 @@ export default function VisionLab() {
                   : visionStatus === 'loading-model'
                     ? 'Loading Neural Net...'
                     : visionStatus === 'photo'
-                      ? 'Image Analyzed'
+                      ? 'Photo Analyzed'
                       : 'Ready (Model Lazy-Loaded)'}
               </span>
             </span>
           </div>
 
-          {/* Action Toolbar */}
+          {/* Action Toolbar: Live Camera + Upload Photo only */}
           <div className="vision-camera-toolbar">
             {visionStatus === 'live' ? (
-              <button type="button" className="btn btn-secondary" onClick={() => { stopCamera(); setVisionStatus('idle') }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  playClick()
+                  stopCamera()
+                  setVisionStatus('idle')
+                }}
+              >
                 <CameraOff size={16} />
                 <span>Stop Camera</span>
               </button>
             ) : (
               <button type="button" className="btn btn-primary" onClick={handleStartCamera}>
                 <Camera size={16} />
-                <span>Start Camera AI</span>
+                <span>Start Live Camera</span>
               </button>
             )}
 
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => handleAnalyzeSampleScene(SAMPLE_SCENES[0])}
-            >
-              <ImageIcon size={16} />
-              <span>Analyze Sample Photo</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                playClick()
+                fileInputRef.current?.click()
+              }}
             >
               <Upload size={16} />
-              <span>Upload Your Photo</span>
+              <span>Upload Photo</span>
             </button>
 
             <input
@@ -2565,82 +2635,203 @@ export default function VisionLab() {
             </div>
           )}
 
-          {/* Viewport + Detections Sidebar */}
+          {/* Clickable 4-Stage Interactive CNN X-Ray Pipeline Strip */}
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 8,
+              }}
+            >
+              <h3 style={{ fontSize: '1.02rem' }}>Click a Neural Network Layer to X-Ray:</h3>
+              <span className="badge badge-subtle">
+                {mode === 'deep-dive' ? 'Interactive CNN Feature Inspector' : 'Click any layer!'}
+              </span>
+            </div>
+            <div className="vision-pipeline-strip" role="group" aria-label="CNN X-Ray layer selector">
+              {pipelineSteps.map((step) => {
+                const isSelected = xrayLayer === step.id
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    aria-pressed={isSelected}
+                    className={`vision-pipeline-step vision-pipeline-step-btn ${isSelected ? 'is-selected' : ''}`}
+                    onClick={() => {
+                      playClick()
+                      setXrayLayer(step.id)
+                    }}
+                  >
+                    <span className="vision-pipeline-num">{step.num}</span>
+                    <span className="vision-pipeline-title">{step.title}</span>
+                    <span className="vision-pipeline-desc">{isDeepDive ? step.deep : step.kid}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Side-by-Side Feed + Neural Net X-Ray View + Controls Sidebar */}
           <div className="vision-stage-grid">
-            <div>
-              <div className="vision-viewport">
-                <video
-                  ref={videoRef}
-                  playsInline
-                  muted
-                  style={{ display: visionStatus === 'live' ? 'block' : 'none' }}
-                />
-                <canvas
-                  ref={canvasRef}
-                  style={{
-                    display: visionStatus === 'live' || visionStatus === 'photo' ? 'block' : 'none',
-                  }}
-                />
-                {visionStatus !== 'live' && visionStatus !== 'photo' && (
-                  <div className="vision-viewport-placeholder">
-                    <Camera size={40} color="#34d399" />
-                    <p style={{ fontWeight: 700, color: '#f8fafc' }}>
-                      {visionStatus === 'loading-model'
-                        ? 'Downloading COCO-SSD weights...'
-                        : 'No camera needed to explore!'}
-                    </p>
-                    <p style={{ fontSize: '0.86rem' }}>{statusMessage}</p>
-                  </div>
-                )}
+            <div className="vision-xray-pair">
+              {/* Left Canvas: Main Camera / Photo Feed with Bounding Boxes */}
+              <div className="vision-viewport-card">
+                <div className="vision-viewport-label">
+                  <span>Camera / Photo Feed</span>
+                  <span className="badge badge-subtle">
+                    {filteredDetections.length} box{filteredDetections.length === 1 ? '' : 'es'}
+                  </span>
+                </div>
+                <div className="vision-viewport">
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    style={{ display: visionStatus === 'live' ? 'block' : 'none' }}
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    style={{
+                      display: visionStatus === 'live' || visionStatus === 'photo' ? 'block' : 'none',
+                    }}
+                  />
+                  {visionStatus !== 'live' && visionStatus !== 'photo' && (
+                    <div className="vision-viewport-placeholder">
+                      <Camera size={36} color="#34d399" />
+                      <p style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.92rem' }}>
+                        {visionStatus === 'loading-model'
+                          ? 'Downloading COCO-SSD weights...'
+                          : 'Start Live Camera or Upload a Photo'}
+                      </p>
+                      <p style={{ fontSize: '0.8rem' }}>
+                        Runs 100% locally in your browser — nothing is uploaded to any server.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {/* 3 Built-In Camera-Free Sample Scenes */}
-              <div className="vision-sample-scenes" aria-label="Built-in sample scenes">
-                {SAMPLE_SCENES.map((scene) => (
-                  <button
-                    key={scene.id}
-                    type="button"
-                    className={`vision-scene-btn ${activeSceneId === scene.id ? 'is-active' : ''}`}
-                    onClick={() => handleAnalyzeSampleScene(scene)}
-                  >
-                    <span style={{ fontSize: '1.35rem' }}>{scene.emoji}</span>
-                    <span>{scene.label}</span>
-                  </button>
-                ))}
+              {/* Right Canvas: Live Neural Net X-Ray View */}
+              <div className="vision-viewport-card">
+                <div className="vision-viewport-label">
+                  <span>Neural Net X-Ray: {activeXrayStep.title}</span>
+                  {xrayLayer === 'edges' && (
+                    <div className="vision-xray-subtabs" role="group" aria-label="Edge filter direction">
+                      {[
+                        { id: 'all', label: 'All' },
+                        { id: 'vertical', label: 'Vert' },
+                        { id: 'horizontal', label: 'Horiz' },
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          className={`vision-xray-subbtn ${edgeFilterMode === opt.id ? 'is-active' : ''}`}
+                          onClick={() => {
+                            playClick()
+                            setEdgeFilterMode(opt.id)
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="vision-viewport">
+                  <canvas
+                    ref={xrayCanvasRef}
+                    style={{
+                      display: visionStatus === 'live' || visionStatus === 'photo' ? 'block' : 'none',
+                    }}
+                  />
+                  {visionStatus !== 'live' && visionStatus !== 'photo' && (
+                    <div className="vision-viewport-placeholder">
+                      <Sparkles size={34} color="#38bdf8" />
+                      <p style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.9rem' }}>
+                        {activeXrayStep.num}: {activeXrayStep.title}
+                      </p>
+                      <p style={{ fontSize: '0.8rem' }}>
+                        {isDeepDive ? activeXrayStep.deep : activeXrayStep.kid}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Right Panel: Detected Objects & Confidence Bars */}
+            {/* Right Panel: Confidence Threshold Slider + Clickable Detections + Object Inspector */}
             <div className="vision-panel">
               <div className="vision-panel-title">
-                <span>Detected Objects</span>
-                <span className="badge badge-subtle">
-                  {detections.length} found{isDemoFallback ? ' · Demo' : ''}
+                <span>Neural Net Controls</span>
+                <span className="badge badge-subtle">{Math.round(confThreshold * 100)}% min</span>
+              </div>
+
+              {/* Live Confidence Threshold Slider */}
+              <div className="vision-threshold-box">
+                <div className="vision-threshold-head">
+                  <label htmlFor="vision-conf-threshold">Confidence Threshold</label>
+                  <span className="font-mono" style={{ color: '#059669' }}>
+                    {Math.round(confThreshold * 100)}%
+                  </span>
+                </div>
+                <input
+                  id="vision-conf-threshold"
+                  type="range"
+                  min={10}
+                  max={90}
+                  step={5}
+                  value={Math.round(confThreshold * 100)}
+                  className="vision-threshold-slider"
+                  onChange={(e) => {
+                    setConfThreshold(Number(e.target.value) / 100)
+                    setSelectedDetIdx(null)
+                  }}
+                />
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                  Showing <strong>{filteredDetections.length}</strong> of{' '}
+                  <strong>{rawDetections.length}</strong> candidate detections above{' '}
+                  {Math.round(confThreshold * 100)}% threshold
                 </span>
               </div>
 
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{statusMessage}</p>
-
-              {detections.length === 0 ? (
+              {/* Clickable Detections List */}
+              {filteredDetections.length === 0 ? (
                 <div
                   style={{
-                    padding: '18px 12px',
+                    padding: '16px 12px',
                     textAlign: 'center',
-                    fontSize: '0.86rem',
+                    fontSize: '0.84rem',
                     color: 'var(--text-muted)',
                     background: 'var(--bg-surface)',
                     borderRadius: 'var(--radius-sm)',
                     border: '1px dashed var(--border-strong)',
                   }}
                 >
-                  Waiting for detections... Hold up a cup, phone, book, or click a Sample Scene!
+                  {rawDetections.length > 0
+                    ? `All ${rawDetections.length} candidate(s) are below ${Math.round(confThreshold * 100)}% — try lowering the threshold slider!`
+                    : statusMessage}
                 </div>
               ) : (
-                <div className="vision-detection-list">
-                  {detections.map((det, idx) => {
+                <div className="vision-detection-list" role="list" aria-label="Detected objects">
+                  {filteredDetections.map((det, idx) => {
                     const pct = Math.round(det.score * 100)
+                    const isSelected = selectedDetIdx === idx
                     return (
-                      <div key={`${det.class}-${idx}`} className="vision-detection-item">
+                      <button
+                        key={`${det.class}-${idx}`}
+                        type="button"
+                        aria-pressed={isSelected}
+                        className={`vision-detection-item ${isSelected ? 'is-selected' : ''}`}
+                        onClick={() => {
+                          playClick()
+                          setSelectedDetIdx((prev) => (prev === idx ? null : idx))
+                        }}
+                      >
                         <div className="vision-detection-top">
                           <span>{det.class}</span>
                           <span className="font-mono" style={{ color: '#059669' }}>
@@ -2652,37 +2843,44 @@ export default function VisionLab() {
                             className="vision-conf-fill"
                             style={{
                               width: `${pct}%`,
-                              background: pct >= 75 ? '#10b981' : '#f59e0b',
+                              background: isSelected ? '#f59e0b' : pct >= 75 ? '#10b981' : '#0ea5e9',
                             }}
                           />
                         </div>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
               )}
-            </div>
-          </div>
 
-          {/* 4-Step Visual Pipeline Strip */}
-          <div style={{ marginTop: 22 }}>
-            <h3 style={{ fontSize: '1.05rem', marginBottom: 4 }}>How the AI Recognized That</h3>
-            <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-              {mode === 'deep-dive'
-                ? 'Inside a convolutional object detector (MobileNet + SSD):'
-                : 'Follow the 4-step journey from raw pixels to a smart guess:'}
-            </p>
-            <div className="vision-pipeline-strip">
-              {pipelineSteps.map((step, idx) => (
-                <div
-                  key={step.num}
-                  className={`vision-pipeline-step ${detections.length > 0 || idx === 0 ? 'is-lit' : ''}`}
-                >
-                  <span className="vision-pipeline-num">{step.num}</span>
-                  <span className="vision-pipeline-title">{step.title}</span>
-                  <span className="vision-pipeline-desc">{isDeepDive ? step.deep : step.kid}</span>
+              {/* Clickable Detection Object Inspector */}
+              {selectedDetection && (
+                <div className="vision-object-inspector" aria-live="polite">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong style={{ textTransform: 'capitalize', color: '#fbbf24' }}>
+                      Inspecting: {selectedDetection.class}
+                    </strong>
+                    <span className="font-mono" style={{ fontSize: '0.76rem', color: '#6ee7b7' }}>
+                      {Math.round(selectedDetection.score * 100)}% vs {Math.round(confThreshold * 100)}% min
+                    </span>
+                  </div>
+
+                  <div className="vision-inspector-crops">
+                    <div className="vision-inspector-crop-box">
+                      <canvas ref={cropRgbCanvasRef} aria-label="Cropped RGB object patch" />
+                      <span>Cropped RGB Patch</span>
+                    </div>
+                    <div className="vision-inspector-crop-box">
+                      <canvas ref={cropEdgeCanvasRef} aria-label="Extracted object edge mini-map" />
+                      <span>Extracted Edges</span>
+                    </div>
+                  </div>
+
+                  <div className="font-mono" style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                    bbox: (x={Math.round(selectedDetection.bbox[0])}, y={Math.round(selectedDetection.bbox[1])}, w={Math.round(selectedDetection.bbox[2])}, h={Math.round(selectedDetection.bbox[3])})
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </section>
