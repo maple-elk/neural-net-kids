@@ -1,0 +1,562 @@
+/* ==========================================================================
+   Stage 2: Layers & Boundaries — Interactive 2D Neural Network Playground
+   ========================================================================== */
+
+.pg-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Mode Banner / Intro Callout */
+.pg-intro-row {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pg-formula-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+/* Top Control Bar: Datasets + Training Controls */
+.pg-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 20px;
+}
+
+.pg-toolbar-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.pg-group-label {
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.pg-dataset-pills {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pg-dataset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 700;
+  transition: all 0.15s ease;
+}
+
+.pg-dataset-btn:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.pg-dataset-btn.is-active {
+  background: #eef2ff;
+  border-color: var(--stage-2);
+  color: #3730a3;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.18);
+}
+
+.pg-dataset-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.pg-play-btn {
+  min-width: 112px;
+}
+
+.pg-play-btn.is-running {
+  background: #f59e0b;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.pg-play-btn.is-running:hover {
+  background: #d97706;
+}
+
+/* Main Workspace Grid: Canvas + Network Diagram */
+.pg-workspace {
+  display: grid;
+  grid-template-columns: minmax(290px, 370px) 1fr;
+  gap: 20px;
+  align-items: stretch;
+}
+
+.pg-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pg-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pg-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.08rem;
+  color: var(--text-primary);
+}
+
+/* Decision Boundary Canvas Card */
+.pg-canvas-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  max-width: 340px;
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 2px solid var(--border-strong);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.04), var(--shadow-sm);
+  background: #f8fafc;
+}
+
+.pg-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+.pg-canvas-probe {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  padding: 5px 10px;
+  border-radius: var(--radius-sm);
+  background: rgba(15, 23, 42, 0.86);
+  color: #f8fafc;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.pg-legend-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.pg-legend-items {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pg-legend-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+}
+
+.pg-dot-swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.18);
+}
+
+.pg-dot-teal {
+  background: #0ea5e9;
+}
+
+.pg-dot-coral {
+  background: #f97316;
+}
+
+/* Metrics + Loss Sparkline Strip */
+.pg-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.pg-metric-box {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pg-metric-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.pg-metric-val {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.pg-metric-val.is-solved {
+  color: #059669;
+}
+
+.pg-sparkline-box {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pg-sparkline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.pg-sparkline-svg {
+  width: 100%;
+  height: 54px;
+  display: block;
+}
+
+/* Network Architecture Diagram + Builder */
+.pg-arch-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.pg-layer-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pg-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  transition: all 0.14s ease;
+}
+
+.pg-icon-btn:hover:not(:disabled) {
+  background: #eef2ff;
+  border-color: var(--stage-2);
+  color: var(--stage-2);
+}
+
+.pg-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.pg-svg-stage {
+  flex: 1;
+  min-height: 270px;
+  background: linear-gradient(180deg, #fafbff 0%, #f8fafc 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 10px 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pg-network-svg {
+  width: 100%;
+  height: 250px;
+  display: block;
+}
+
+.pg-neuron-steppers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border-subtle);
+}
+
+.pg-hidden-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.pg-mini-step {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.pg-mini-step:hover:not(:disabled) {
+  background: var(--stage-2);
+  border-color: var(--stage-2);
+  color: #ffffff;
+}
+
+.pg-mini-step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Hyperparameters Row: Activation & Learning Rate */
+.pg-hyper-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.pg-hyper-box {
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pg-hyper-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pg-act-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.pg-act-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1.5px solid var(--border-subtle);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: all 0.14s ease;
+}
+
+.pg-act-btn.is-active {
+  background: var(--stage-2);
+  border-color: var(--stage-2);
+  color: #ffffff;
+}
+
+.pg-slider {
+  width: 100%;
+  accent-color: var(--stage-2);
+  cursor: pointer;
+}
+
+.pg-helper-note {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Weight Legend */
+.pg-weight-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.pg-line-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 4px;
+  border-radius: 99px;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+.pg-line-pos {
+  background: #0ea5e9;
+}
+
+.pg-line-neg {
+  background: #f43f5e;
+}
+
+/* Experiment Missions Section */
+.pg-missions-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pg-missions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.pg-mission-item {
+  border: 1.5px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+}
+
+.pg-mission-item.is-active {
+  border-color: var(--stage-2);
+  background: #fafaff;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.12);
+}
+
+.pg-mission-item.is-solved {
+  border-color: #10b981;
+  background: #f0fdf4;
+}
+
+.pg-mission-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pg-mission-title {
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pg-mission-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.pg-mission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.pg-mission-goal {
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+/* Responsive */
+@media (max-width: 960px) {
+  .pg-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .pg-hyper-grid,
+  .pg-missions-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .pg-toolbar {
+    padding: 14px;
+  }
+
+  .pg-metrics-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

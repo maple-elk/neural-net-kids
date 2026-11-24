@@ -1,0 +1,566 @@
+/* ==========================================================================
+   Stage 6: Build & Run a Mini-LLM (MiniLlmLab)
+   ========================================================================== */
+
+.minillm-lab {
+  --lab-accent: var(--stage-6);
+}
+
+.minillm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.minillm-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.minillm-section-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.minillm-section-num {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+/* ---------- Panel 1: Train Your Own Mini-Brain ---------- */
+
+.corpus-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.corpus-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  text-align: left;
+  color: var(--text-primary);
+  transition: all 0.15s ease;
+}
+
+.corpus-card:hover {
+  border-color: #7dd3fc;
+  background: #f0f9ff;
+  transform: translateY(-1px);
+}
+
+.corpus-card.is-active {
+  background: #0284c7;
+  border-color: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 5px 14px rgba(2, 132, 199, 0.28);
+}
+
+.corpus-card-title {
+  font-family: var(--font-display);
+  font-size: 0.98rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.corpus-card-desc {
+  font-size: 0.76rem;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.corpus-card.is-active .corpus-card-desc {
+  color: #e0f2fe;
+}
+
+.corpus-editor-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.corpus-textarea {
+  width: 100%;
+  min-height: 132px;
+  padding: 13px 15px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-strong);
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 0.92rem;
+  line-height: 1.55;
+  resize: vertical;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.corpus-textarea:focus {
+  outline: none;
+  border-color: var(--stage-6);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.15);
+}
+
+.train-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.brain-stats-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.brain-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  font-size: 0.82rem;
+  color: #0369a1;
+}
+
+.brain-stat strong {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  color: #0c4a6e;
+}
+
+/* ---------- Panel 2: Autoregressive Loop Strip ---------- */
+
+.loop-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.loop-step {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  border: 1.5px solid rgba(148, 163, 184, 0.22);
+  background: rgba(30, 41, 59, 0.72);
+  transition: all 0.2s ease;
+}
+
+.loop-step.is-active {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.35), rgba(79, 70, 229, 0.35));
+  border-color: #38bdf8;
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.35);
+  transform: translateY(-1px);
+}
+
+.loop-step-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.22);
+  color: #cbd5e1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.loop-step.is-active .loop-step-badge {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.loop-step-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.loop-step-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.loop-step-sub {
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+/* ---------- Generation Studio Grid ---------- */
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: 1.12fr 0.88fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.studio-left,
+.studio-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.prompt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+
+.prompt-chip {
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.14s ease;
+}
+
+.prompt-chip:hover {
+  border-color: #7dd3fc;
+  background: #f0f9ff;
+  color: #0369a1;
+}
+
+.prompt-input {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-strong);
+  background: #ffffff;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  font-weight: 600;
+}
+
+.prompt-input:focus {
+  outline: none;
+  border-color: var(--stage-6);
+  box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.14);
+}
+
+.story-output-box {
+  padding: 18px;
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+  border: 1.5px solid var(--border-subtle);
+  min-height: 126px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.story-tokens-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 5px;
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+
+.story-token-prompt {
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.story-token-gen {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 7px;
+  background: #e0f2fe;
+  color: #0369a1;
+  font-weight: 700;
+  border: 1px solid #bae6fd;
+}
+
+.story-token-gen.is-latest {
+  background: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+  animation: tokenPop 0.35s ease;
+}
+
+@keyframes tokenPop {
+  0% {
+    transform: scale(0.84);
+    box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.5);
+  }
+  60% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 8px rgba(14, 165, 233, 0);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.gen-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.btn-sky {
+  background: #0284c7;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.28);
+}
+
+.btn-sky:hover {
+  background: #0369a1;
+  transform: translateY(-1px);
+}
+
+/* ---------- Creativity Dials & Probability Chart ---------- */
+
+.dials-card {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dial-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dial-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.dial-mood-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.dial-slider {
+  width: 100%;
+  accent-color: #0284c7;
+  cursor: pointer;
+}
+
+.dial-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.prob-chart-card {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  border: 1.5px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.prob-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prob-list {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.prob-row {
+  display: grid;
+  grid-template-columns: 112px 1fr 56px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1.5px solid transparent;
+  background: #f8fafc;
+  text-align: left;
+  width: 100%;
+  transition: all 0.18s ease;
+}
+
+.prob-row:hover {
+  border-color: #7dd3fc;
+  background: #f0f9ff;
+}
+
+.prob-row.is-sampled {
+  background: #e0f2fe;
+  border-color: #0284c7;
+  box-shadow: 0 3px 10px rgba(2, 132, 199, 0.18);
+}
+
+.prob-token-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.prob-token-word {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prob-source-tag {
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.prob-bar-track {
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: #e2e8f0;
+  overflow: hidden;
+}
+
+.prob-bar-fill {
+  height: 100%;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, #0ea5e9, #6366f1);
+  transition: width 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.prob-row.is-sampled .prob-bar-fill {
+  background: linear-gradient(90deg, #0284c7, #10b981);
+}
+
+.prob-pct {
+  font-family: var(--font-mono);
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #0369a1;
+  text-align: right;
+}
+
+/* ---------- Section 3: How Real LLMs Scale This Up ---------- */
+
+.scale-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.scale-card {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.scale-step-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.scale-card h3 {
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.scale-card p {
+  font-size: 0.87rem;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 960px) {
+  .corpus-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .loop-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .studio-grid,
+  .scale-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .corpus-grid,
+  .loop-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .prob-row {
+    grid-template-columns: 88px 1fr 48px;
+  }
+}
