@@ -240,3 +240,345 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Tab C: Network Zoo, Layers, Node Types & Feedback Loops
+   ========================================================================== */
+
+.zoo-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.zoo-arch-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.zoo-arch-btn {
+  padding: 12px 12px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-subtle);
+  background: var(--bg-surface);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.16s ease;
+}
+
+.zoo-arch-btn:hover {
+  border-color: var(--arch-color, var(--brand-primary));
+  transform: translateY(-1px);
+}
+
+.zoo-arch-btn.is-active {
+  border-color: var(--arch-color, var(--brand-primary));
+  background: color-mix(in srgb, var(--arch-color, #4f46e5) 9%, #ffffff);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+.zoo-arch-badge {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--arch-color, var(--brand-primary));
+}
+
+.zoo-arch-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.zoo-arch-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.zoo-blueprint-grid {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.zoo-svg-stage {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 14px;
+}
+
+.zoo-rnn-demo {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: #fffbeb;
+  border: 1.5px solid #fcd34d;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zoo-word-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.zoo-word-chip {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: #ffffff;
+  border: 1.5px solid var(--border-subtle);
+  color: var(--text-muted);
+}
+
+.zoo-word-chip.is-seen {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+
+.zoo-word-chip.is-current {
+  background: #f59e0b;
+  border-color: #d97706;
+  color: #ffffff;
+}
+
+.zoo-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zoo-info-box {
+  padding: 11px 13px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+}
+
+.zoo-info-box strong {
+  color: var(--text-primary);
+}
+
+/* Anatomy Explorer */
+.zoo-subtabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.zoo-subtab-btn {
+  padding: 7px 14px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.85rem;
+  transition: all 0.15s ease;
+}
+
+.zoo-subtab-btn.is-active {
+  background: var(--brand-primary);
+  color: #ffffff;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.25);
+}
+
+.zoo-depth-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.zoo-depth-pill {
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-subtle);
+  background: var(--bg-surface);
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  text-align: center;
+  transition: all 0.15s ease;
+}
+
+.zoo-depth-pill.is-active {
+  border-color: var(--brand-primary);
+  background: #eef2ff;
+  color: #312e81;
+}
+
+.zoo-layer-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+  border: 1px solid var(--border-subtle);
+}
+
+.zoo-layer-block {
+  padding: 8px 13px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  border: 1.5px solid #c7d2fe;
+  background: #ffffff;
+  color: #1e1b4b;
+}
+
+.zoo-nodes-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.zoo-node-card {
+  padding: 12px 10px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-subtle);
+  background: var(--bg-surface);
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: all 0.15s ease;
+}
+
+.zoo-node-card:hover {
+  border-color: var(--brand-primary);
+}
+
+.zoo-node-card.is-active {
+  border-color: var(--brand-primary);
+  background: #eef2ff;
+}
+
+.zoo-loops-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.zoo-loop-card {
+  padding: 16px 18px;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--border-subtle);
+  background: var(--bg-surface);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zoo-loop-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--bg-subtle);
+}
+
+/* Mini-Challenge: Pick the Right Brain */
+.zoo-quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.zoo-quiz-card {
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1.5px solid var(--border-subtle);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zoo-quiz-card.is-correct {
+  border-color: #34d399;
+  background: #ecfdf5;
+}
+
+.zoo-quiz-card.is-wrong {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.zoo-quiz-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.zoo-quiz-opt {
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border-strong);
+  background: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  transition: all 0.14s ease;
+}
+
+.zoo-quiz-opt:hover {
+  border-color: var(--brand-primary);
+}
+
+.zoo-quiz-opt.is-picked-right {
+  background: #10b981;
+  border-color: #059669;
+  color: #ffffff;
+}
+
+.zoo-quiz-opt.is-picked-wrong {
+  background: #ef4444;
+  border-color: #dc2626;
+  color: #ffffff;
+}
+
+@media (max-width: 960px) {
+  .zoo-arch-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .zoo-blueprint-grid,
+  .zoo-loops-grid,
+  .zoo-quiz-grid {
+    grid-template-columns: 1fr;
+  }
+  .zoo-nodes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .zoo-depth-steps {
+    grid-template-columns: 1fr;
+  }
+}

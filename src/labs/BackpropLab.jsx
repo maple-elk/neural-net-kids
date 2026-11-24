@@ -4,6 +4,7 @@ import {
   ArrowRight,
   CheckCircle2,
   FastForward,
+  Layers,
   Mountain,
   Pause,
   Play,
@@ -22,6 +23,7 @@ import { useLearning } from '../context/LearningContext.jsx'
 import { getStageById } from '../utils/pathwayLoader.js'
 import { playClick, playStep, playSuccess } from '../utils/sound.js'
 import TermTip from '../components/TermTip.jsx'
+import NetworkZooPanel from './NetworkZooPanel.jsx'
 import './BackpropLab.css'
 
 const RANGE = 2
@@ -803,6 +805,19 @@ export default function BackpropLab() {
             <Workflow size={16} />
             <span>B: Backprop Time-Machine</span>
           </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'zoo'}
+            className={`bp-tab-btn ${tab === 'zoo' ? 'is-active' : ''}`}
+            onClick={() => {
+              setTab('zoo')
+              playClick()
+            }}
+          >
+            <Layers size={16} />
+            <span>C: Network Zoo &amp; Loops</span>
+          </button>
         </div>
       </header>
 
@@ -822,11 +837,9 @@ export default function BackpropLab() {
         )}
       </div>
 
-      {tab === 'mountain' ? (
-        <LossMountainPanel isDeepDive={isDeepDive} />
-      ) : (
-        <BackpropTimeMachinePanel isDeepDive={isDeepDive} />
-      )}
+      {tab === 'mountain' && <LossMountainPanel isDeepDive={isDeepDive} />}
+      {tab === 'timemachine' && <BackpropTimeMachinePanel isDeepDive={isDeepDive} />}
+      {tab === 'zoo' && <NetworkZooPanel isDeepDive={isDeepDive} navigate={navigate} />}
 
       <nav className="lab-footer-nav" aria-label="Stage 3 navigation">
         <button type="button" className="btn btn-secondary" onClick={() => navigate('/stage/2')}>

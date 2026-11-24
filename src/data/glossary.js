@@ -231,6 +231,33 @@ export const GLOSSARY = {
     plain:
       'The discovery that giving a language model more parameters, more training text, and more compute makes its predictions smoothly and predictably smarter.',
   },
+  mlp: {
+    term: 'Feedforward / MLP',
+    emoji: '🕸️',
+    plain:
+      'Multi-Layer Perceptron — a classic neural network where signals flow strictly one way (inputs → hidden layers → output) with no loops, great for tables, numbers, and curved boundaries.',
+    formula: 'x → Layer 1 → Layer 2 → ŷ',
+  },
+  cnn: {
+    term: 'Convolutional Network (CNN)',
+    emoji: '🔍',
+    plain:
+      'A vision-specialist neural network that slides tiny pattern-spotting lenses (kernels) across an image grid to detect edges, shapes, and whole objects.',
+    formula: 'Pixels → Conv Filters → Pooling → Object',
+  },
+  rnn: {
+    term: 'Recurrent Network (RNN)',
+    emoji: '🔁',
+    plain:
+      'A sequence-reading neural network with a built-in memory loop: each step feeds its hidden memory back into the next step so it remembers what happened earlier.',
+    formula: 'hₜ = f(W·xₜ + U·hₜ₋₁)',
+  },
+  'feedback-loop': {
+    term: 'Feedback Loop',
+    emoji: '♻️',
+    plain:
+      'Any path where a network’s result circles back to guide it — either backward during training (Backpropagation fixing weights) or forward across time (Memory & LLM word-by-word loops).',
+  },
 }
 
 export function getGlossaryEntry(key) {
