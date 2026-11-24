@@ -244,7 +244,7 @@ describe('Hand-Drawn Character Recognizer (src/engine/charRecognizer.js)', () =>
     }
 
     expect(trace7.inputToHiddenEdges.length).toBeGreaterThanOrEqual(35);
-    expect(trace7.inputToHiddenEdges.length).toBeLessThanOrEqual(52);
+    expect(trace7.inputToHiddenEdges.length).toBeLessThanOrEqual(60);
     for (const edge of trace7.inputToHiddenEdges) {
       expect(edge.from).toBeGreaterThanOrEqual(0);
       expect(edge.from).toBeLessThan(16);
@@ -278,7 +278,70 @@ describe('Hand-Drawn Character Recognizer (src/engine/charRecognizer.js)', () =>
     expect(resL.networkTrace.outputNodes).toHaveLength(10);
     expect(resL.networkTrace.outputNodes[0].char).toBe('L');
     expect(resL.networkTrace.outputNodes[0].isWinner).toBe(true);
-    expect(getHidden(resL.networkTrace, 'leftStem')).toBeGreaterThan(0.35);
-    expect(getHidden(resL.networkTrace, 'bottomBar')).toBeGreaterThan(0.35);
+    expect(getHidden(resL.networkTrace, 'leftStem')).toBeGreaterThan(0.3);
+    expect(getHidden(resL.networkTrace, 'bottomBar')).toBeGreaterThan(0.3);
+  });
+
+  it('enforces the no-ghost-activation invariant: hidden neurons are strictly 0 when incoming inputs are 0', () => {
+    const letterRec = createCharRecognizer('letters');
+
+    // A wide, short horizontal bar centers strictly in rows y=6..8 -> Row 1 (nodes 0..3) and Row 4 (nodes 12..15) are all 0
+    const wideBar = Array.from({ length: 64 }, () => new Array(64).fill(0));
+    for (let y = 28; y <= 34; y++) {
+      for (let x = 4; x <= 60; x++) {
+        wideBar[y][x] = 1;
+      }
+    }
+
+    const resBar = letterRec.recognize(wideBar);
+    const traceBar = resBar.networkTrace;
+
+    // Row 1 input nodes (0..3) must all be 0, and Top Bar must therefore be strictly 0!
+    const row1Inputs = traceBar.inputNodes.slice(0, 4);
+    expect(row1Inputs.every((n) => n.activation === 0)).toBe(true);
+    const topBarNode = traceBar.hiddenNodes.find((n) => n.id === 'topBar');
+    expect(topBarNode.activation).toBe(0);
+
+    // Row 4 input nodes (12..15) must all be 0, and Bottom Bar must therefore be strictly 0!
+    const row4Inputs = traceBar.inputNodes.slice(12, 16);
+    expect(row4Inputs.every((n) => n.activation === 0)).toBe(true);
+    const botBarNode = traceBar.hiddenNodes.find((n) => n.id === 'bottomBar');
+    expect(botBarNode.activation).toBe(0);
+
+    // General invariant across multiple shapes: for every hidden neuron, if all positively-weighted
+    // connected input nodes have activation === 0, the hidden neuron activation MUST be strictly 0
+    const tallBar = Array.from({ length: 64 }, () => new Array(64).fill(0));
+    for (let y = 4; y <= 60; y++) {
+      for (let x = 28; x <= 34; x++) {
+        tallBar[y][x] = 1;
+      }
+    }
+
+    for (const sample of [wideBar, tallBar, renderSampleChar('T', 64), renderSampleChar('0', 64)]) {
+      const { networkTrace } = letterRec.recognize(sample);
+      for (let h = 0; h < networkTrace.hiddenNodes.length; h++) {
+        const posEdges = networkTrace.inputToHiddenEdges.filter((e) => e.to === h && e.weight > 0);
+        const allIncomingZero = posEdges.every(
+          (e) => networkTrace.inputNodes[e.from].activation === 0,
+        );
+        if (allIncomingZero) {
+          expect(networkTrace.hiddenNodes[h].activation).toBe(0);
+        }
+      }
+    }
+  });
+
+  it('activates Row 1 input nodes and Top Bar when drawing T and recognizes T cleanly', () => {
+    const letterRec = createCharRecognizer('letters');
+    const resT = letterRec.recognize(renderSampleChar('T', 64));
+
+    expect(resT.prediction).toBe('T');
+    const row1Sum = resT.networkTrace.inputNodes
+      .slice(0, 4)
+      .reduce((acc, n) => acc + n.activation, 0);
+    expect(row1Sum).toBeGreaterThan(0.5);
+
+    const topBar = resT.networkTrace.hiddenNodes.find((n) => n.id === 'topBar');
+    expect(topBar.activation).toBeGreaterThan(0.25);
   });
 });

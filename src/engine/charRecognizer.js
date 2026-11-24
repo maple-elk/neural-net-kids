@@ -17,7 +17,7 @@ export const CHARSETS = {
 };
 
 const GRID_SIZE = 16;
-const INNER_SIZE = 12;
+const INNER_SIZE = 14;
 
 /**
  * Convert various drawing inputs (ImageData, flat RGBA array, flat grayscale array,
@@ -741,18 +741,18 @@ const LETTER_PROTOTYPES = {
  * 12 interpretable hidden feature-detector neuron definitions.
  */
 const HIDDEN_NEURON_DEFS = [
-  { id: 'topBar', label: 'Top Bar', shortLabel: 'Top Bar', description: 'Detects a horizontal stroke across the top edge (like 7, 5, T, E, Z).' },
-  { id: 'midBar', label: 'Middle Bar', shortLabel: 'Mid Bar', description: 'Detects a horizontal bar through the middle (like 4, 8, A, E, H).' },
-  { id: 'bottomBar', label: 'Bottom Bar', shortLabel: 'Bot Bar', description: 'Detects a flat base along the bottom edge (like 2, E, L, Z).' },
-  { id: 'leftStem', label: 'Left Stem', shortLabel: 'L-Stem', description: 'Detects a vertical wall on the left side (like B, D, E, F, H, L, P).' },
-  { id: 'rightStem', label: 'Right Stem', shortLabel: 'R-Stem', description: 'Detects a vertical stroke on the right side (like 4, 9, H, M, N, U).' },
-  { id: 'diagSlash', label: 'Diagonal /', shortLabel: 'Diag /', description: 'Detects a forward-slanted diagonal from top-right to bottom-left (like 7, 2, Z, X).' },
-  { id: 'diagBackslash', label: 'Diagonal \\', shortLabel: 'Diag \\', description: 'Detects a backward-slanted diagonal from top-left to bottom-right (like N, X, K, R).' },
-  { id: 'centerInk', label: 'Center Ink', shortLabel: 'Center', description: 'Detects ink passing right through the center (like 1, 3, 8, X, H, S).' },
-  { id: 'topLoop', label: 'Top Loop', shortLabel: 'Top O', description: 'Detects a curved loop or arch in the upper half (like 0, 8, 9, B, O, P, R).' },
-  { id: 'bottomLoop', label: 'Bottom Loop', shortLabel: 'Bot O', description: 'Detects a curved loop or bowl in the lower half (like 0, 6, 8, B, O, U).' },
-  { id: 'hEdges', label: 'Horizontal Edges', shortLabel: 'H-Edges', description: 'Measures overall horizontal edge energy across the drawing.' },
-  { id: 'vEdges', label: 'Vertical Edges', shortLabel: 'V-Edges', description: 'Measures overall vertical edge energy across the drawing.' },
+  { id: 'topBar', label: 'Top Bar', shortLabel: 'Top Bar', description: 'Reads Row 1 input zones (0–3) to detect a top horizontal stroke (like 7, 5, T, E, Z).' },
+  { id: 'midBar', label: 'Middle Bar', shortLabel: 'Mid Bar', description: 'Reads Row 2 input zones (4–7) to detect an upper-middle bar (like 4, 8, A, E, H).' },
+  { id: 'bottomBar', label: 'Bottom Bar', shortLabel: 'Bot Bar', description: 'Reads Row 4 input zones (12–15) to detect a flat base along the bottom (like 2, E, L, Z).' },
+  { id: 'leftStem', label: 'Left Stem', shortLabel: 'L-Stem', description: 'Reads left-side input zones (0, 4, 5, 8, 9, 12) to detect a vertical wall on the left (like B, D, E, F, H, L, P).' },
+  { id: 'rightStem', label: 'Right Stem', shortLabel: 'R-Stem', description: 'Reads right-side input zones (3, 6, 7, 10, 11, 15) to detect a vertical stroke on the right (like 4, 9, H, M, N, U).' },
+  { id: 'diagSlash', label: 'Diagonal /', shortLabel: 'Diag /', description: 'Reads anti-diagonal input zones (3, 6, 9, 12) for a slanted / stroke (like 7, 2, Z, X).' },
+  { id: 'diagBackslash', label: 'Diagonal \\', shortLabel: 'Diag \\', description: 'Reads main-diagonal input zones (0, 5, 10, 15) for a slanted \\ stroke (like N, X, K, R).' },
+  { id: 'centerInk', label: 'Center Ink', shortLabel: 'Center', description: 'Reads the 4 center input zones (5, 6, 9, 10) for ink crossing the middle (like 1, 3, 8, X, H, S).' },
+  { id: 'topLoop', label: 'Top Loop', shortLabel: 'Top O', description: 'Reads upper ring zones (1, 2, 4, 7) with mild center inhibition (5) for a top loop (like 0, 8, 9, B, O, P).' },
+  { id: 'bottomLoop', label: 'Bottom Loop', shortLabel: 'Bot O', description: 'Reads lower ring zones (8, 11, 13, 14) with mild center inhibition (9) for a bottom loop (like 0, 6, 8, B, O, U).' },
+  { id: 'topBottom', label: 'Top & Bottom Caps', shortLabel: 'Top+Bot', description: 'Reads top-center and bottom-center zones (1, 2, 13, 14) for characters capped at both ends (like 0, 2, 3, 8, E, I, O, S, Z).' },
+  { id: 'sideWalls', label: 'Side Walls', shortLabel: 'Sides', description: 'Reads left and right middle walls (4, 7, 8, 11) for wide framed shapes (like 0, H, M, N, O, U).' },
 ];
 
 /**
@@ -760,30 +760,30 @@ const HIDDEN_NEURON_DEFS = [
  * to the 12 hidden feature-detector neurons (0..11).
  */
 const INPUT_TO_HIDDEN_SPEC = [
-  // 0: Top Bar
+  // 0: Top Bar (Row 1: 0, 1, 2, 3)
   [0, 0, 0.85], [1, 0, 0.95], [2, 0, 0.95], [3, 0, 0.85],
-  // 1: Mid Bar
-  [4, 1, 0.7], [5, 1, 0.95], [6, 1, 0.95], [7, 1, 0.7],
-  // 2: Bottom Bar
+  // 1: Mid Bar (Row 2: 4, 5, 6, 7)
+  [4, 1, 0.75], [5, 1, 0.95], [6, 1, 0.95], [7, 1, 0.75],
+  // 2: Bottom Bar (Row 4: 12, 13, 14, 15)
   [12, 2, 0.85], [13, 2, 0.95], [14, 2, 0.95], [15, 2, 0.85],
-  // 3: Left Stem
-  [0, 3, 0.85], [4, 3, 0.95], [8, 3, 0.95], [12, 3, 0.85],
-  // 4: Right Stem
-  [3, 4, 0.85], [7, 4, 0.95], [11, 4, 0.95], [15, 4, 0.85],
-  // 5: Diag /
-  [3, 5, 0.9], [6, 5, 0.95], [9, 5, 0.95], [12, 5, 0.9],
-  // 6: Diag \
-  [0, 6, 0.9], [5, 6, 0.95], [10, 6, 0.95], [15, 6, 0.9],
-  // 7: Center Ink
+  // 3: Left Stem (left column + inner-left spine: 0, 4, 8, 12, 5, 9)
+  [0, 3, 0.85], [4, 3, 0.9], [8, 3, 0.9], [12, 3, 0.85], [5, 3, 0.75], [9, 3, 0.75],
+  // 4: Right Stem (right column + inner-right spine: 3, 7, 11, 15, 6, 10)
+  [3, 4, 0.85], [7, 4, 0.9], [11, 4, 0.9], [15, 4, 0.85], [6, 4, 0.75], [10, 4, 0.75],
+  // 5: Diag / (3, 6, 9, 12 positive; 5, 10 perpendicular inhibitory)
+  [3, 5, 0.9], [6, 5, 0.95], [9, 5, 0.95], [12, 5, 0.9], [5, 5, -0.75], [10, 5, -0.75],
+  // 6: Diag \ (0, 5, 10, 15 positive; 6, 9 perpendicular inhibitory)
+  [0, 6, 0.9], [5, 6, 0.95], [10, 6, 0.95], [15, 6, 0.9], [6, 6, -0.75], [9, 6, -0.75],
+  // 7: Center Ink (5, 6, 9, 10)
   [5, 7, 0.9], [6, 7, 0.9], [9, 7, 0.9], [10, 7, 0.9],
-  // 8: Top Loop
-  [1, 8, 0.8], [2, 8, 0.8], [4, 8, 0.75], [7, 8, 0.75],
-  // 9: Bottom Loop
-  [8, 9, 0.75], [11, 9, 0.75], [13, 9, 0.8], [14, 9, 0.8],
-  // 10: H-Edges
-  [1, 10, 0.65], [2, 10, 0.65], [13, 10, 0.65], [14, 10, 0.65],
-  // 11: V-Edges
-  [4, 11, 0.65], [7, 11, 0.65], [8, 11, 0.65], [11, 11, 0.65],
+  // 8: Top Loop (1, 2, 4, 7 positive; 5 mildly inhibitory)
+  [1, 8, 0.85], [2, 8, 0.85], [4, 8, 0.8], [7, 8, 0.8], [5, 8, -0.35],
+  // 9: Bottom Loop (8, 11, 13, 14 positive; 9 mildly inhibitory)
+  [8, 9, 0.8], [11, 9, 0.8], [13, 9, 0.85], [14, 9, 0.85], [9, 9, -0.35],
+  // 10: Top & Bottom Caps (1, 2, 13, 14)
+  [1, 10, 0.8], [2, 10, 0.8], [13, 10, 0.8], [14, 10, 0.8],
+  // 11: Side Walls (4, 7, 8, 11)
+  [4, 11, 0.8], [7, 11, 0.8], [8, 11, 0.8], [11, 11, 0.8],
 ];
 
 /**
@@ -830,103 +830,36 @@ function computeInputNodes(grid16) {
 }
 
 /**
- * Compute the 12 interpretable hidden neuron activations (0..1) from a 16x16 grid.
- * @param {number[][]} grid16
+ * Compute the 12 hidden neuron activations (0..1) directly and faithfully from
+ * `inputNodes` and `INPUT_TO_HIDDEN_SPEC` using a ReLU-clamped weighted sum:
+ *   z_h = sum(inputNodes[from].activation * weight)
+ *   act_h = clamp01(max(0, z_h) / (posWeightSum_h * 0.85))
+ *
+ * Hard invariant: if every positively-weighted incoming input node for hidden
+ * neuron h has activation === 0, then hidden neuron h's activation is strictly 0.
+ *
+ * @param {Array<{ id: number, row: number, col: number, activation: number }>} inputNodes
  * @returns {number[]}
  */
-function computeHiddenActivations(grid16) {
-  // Region ink cues
-  const topInk = regionMean(grid16, 1, 4, 3, 12);
-  const midInk = regionMean(grid16, 6, 9, 3, 12);
-  const botInk = regionMean(grid16, 11, 14, 3, 12);
-  const leftInk = regionMean(grid16, 2, 13, 2, 6);
-  const rightInk = regionMean(grid16, 2, 13, 9, 13);
-  const centerInkRaw = regionMean(grid16, 5, 10, 5, 10);
+function computeHiddenActivations(inputNodes) {
+  const count = HIDDEN_NEURON_DEFS.length;
+  const weightedSums = new Array(count).fill(0);
+  const posWeightSums = new Array(count).fill(0);
 
-  // Diagonal bands (width 3 pixels around main & anti-diagonal)
-  let slashSum = 0;
-  let slashCount = 0;
-  let backslashSum = 0;
-  let backslashCount = 0;
-  for (let y = 2; y <= 13; y++) {
-    for (let x = 2; x <= 13; x++) {
-      if (Math.abs(x + y - 15) <= 1) {
-        slashSum += grid16[y][x];
-        slashCount += 1;
-      }
-      if (Math.abs(x - y) <= 1) {
-        backslashSum += grid16[y][x];
-        backslashCount += 1;
-      }
-    }
-  }
-  const slashInk = slashCount > 0 ? slashSum / slashCount : 0;
-  const backslashInk = backslashCount > 0 ? backslashSum / backslashCount : 0;
-
-  // Directional Sobel edge energies
-  let hEnergy = 0;
-  let vEnergy = 0;
-  let diagSlashEnergy = 0;
-  let diagBackEnergy = 0;
-  let topHEnergy = 0;
-  let midHEnergy = 0;
-  let botHEnergy = 0;
-
-  for (let y = 1; y < GRID_SIZE - 1; y++) {
-    for (let x = 1; x < GRID_SIZE - 1; x++) {
-      const gx =
-        -grid16[y - 1][x - 1] + grid16[y - 1][x + 1] +
-        -2 * grid16[y][x - 1] + 2 * grid16[y][x + 1] +
-        -grid16[y + 1][x - 1] + grid16[y + 1][x + 1];
-      const gy =
-        -grid16[y - 1][x - 1] - 2 * grid16[y - 1][x] - grid16[y - 1][x + 1] +
-        grid16[y + 1][x - 1] + 2 * grid16[y + 1][x] + grid16[y + 1][x + 1];
-      const absX = Math.abs(gx);
-      const absY = Math.abs(gy);
-
-      vEnergy += absX;
-      hEnergy += absY;
-      if (y <= 5) topHEnergy += absY;
-      else if (y <= 10) midHEnergy += absY;
-      else botHEnergy += absY;
-
-      // Edges perpendicular to '/' have gx and gy of same sign; perpendicular to '\' have opposite sign
-      if (gx * gy > 0) diagSlashEnergy += Math.min(absX, absY);
-      if (gx * gy < 0) diagBackEnergy += Math.min(absX, absY);
+  for (let i = 0; i < INPUT_TO_HIDDEN_SPEC.length; i++) {
+    const [from, to, weight] = INPUT_TO_HIDDEN_SPEC[i];
+    const inAct = inputNodes[from]?.activation ?? 0;
+    weightedSums[to] += inAct * weight;
+    if (weight > 0) {
+      posWeightSums[to] += weight;
     }
   }
 
-  const totalEdge = Math.max(1e-5, hEnergy + vEnergy);
-
-  // Top & bottom loop detectors: strong perimeter ink around upper/lower half with lower interior fill
-  const topPerimeter =
-    (regionMean(grid16, 1, 3, 4, 11) +
-      regionMean(grid16, 3, 7, 2, 5) +
-      regionMean(grid16, 3, 7, 10, 13)) / 3;
-  const topHollow = 1 - Math.min(1, regionMean(grid16, 3, 6, 6, 9) * 1.15);
-
-  const botPerimeter =
-    (regionMean(grid16, 12, 14, 4, 11) +
-      regionMean(grid16, 8, 12, 2, 5) +
-      regionMean(grid16, 8, 12, 10, 13)) / 3;
-  const botHollow = 1 - Math.min(1, regionMean(grid16, 9, 12, 6, 9) * 1.15);
-
-  const raw = [
-    clamp01(topInk * 1.65 + (topHEnergy / totalEdge) * 0.65),
-    clamp01(midInk * 1.65 + (midHEnergy / totalEdge) * 0.55),
-    clamp01(botInk * 1.65 + (botHEnergy / totalEdge) * 0.65),
-    clamp01(leftInk * 2.2),
-    clamp01(rightInk * 2.2),
-    clamp01(slashInk * 1.55 + (diagSlashEnergy / totalEdge) * 1.25),
-    clamp01(backslashInk * 1.55 + (diagBackEnergy / totalEdge) * 1.25),
-    clamp01(centerInkRaw * 2.1),
-    clamp01(topPerimeter * 2.1 * (0.45 + 0.55 * topHollow)),
-    clamp01(botPerimeter * 2.1 * (0.45 + 0.55 * botHollow)),
-    clamp01((hEnergy / totalEdge) * 1.45),
-    clamp01((vEnergy / totalEdge) * 1.45),
-  ];
-
-  return raw.map((v) => Number(v.toFixed(3)));
+  return weightedSums.map((z, h) => {
+    if (z <= 0 || posWeightSums[h] <= 0) return 0;
+    const scaled = z / (posWeightSums[h] * 0.85);
+    return Number(clamp01(scaled).toFixed(3));
+  });
 }
 
 /**
@@ -968,7 +901,7 @@ function getBasePrototypes(charset) {
         const features = extractFeatures(normalizedGrid, bbox);
         prototypes.push({ char, features, boost: 0 });
 
-        const hActs = computeHiddenActivations(normalizedGrid);
+        const hActs = computeHiddenActivations(computeInputNodes(normalizedGrid));
         for (let h = 0; h < hActs.length; h++) {
           sumHidden[h] += hActs[h];
         }
@@ -1053,7 +986,7 @@ export function createCharRecognizer(charset = 'digits') {
         }));
 
     const hiddenActVals = hasInk
-      ? computeHiddenActivations(normalizedGrid)
+      ? computeHiddenActivations(inputNodes)
       : new Array(HIDDEN_NEURON_DEFS.length).fill(0);
 
     const hiddenNodes = HIDDEN_NEURON_DEFS.map((def, idx) => ({
