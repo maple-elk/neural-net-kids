@@ -117,6 +117,57 @@ const MISSIONS = [
   },
 ]
 
+const GUIDED_STEPS = [
+  {
+    id: 1,
+    shortLabel: 'One Straight Fence',
+    title: 'Step 1: One Straight Fence (0 Hidden Layers)',
+    kidStory:
+      'Each dot on the map belongs to Team Teal or Team Coral. The shaded background is the AI’s guess map — blue where it guesses Teal, orange where it guesses Coral, and white right on the border. With 0 hidden layers, a single neuron can only draw ONE straight fence. Press Train and watch it spin into place!',
+    deepStory:
+      'With 0 hidden layers, the network reduces to a single logistic perceptron ŷ = σ(w₁x + w₂y + b). Because the decision boundary w₁x + w₂y + b = 0 is linear, it cleanly partitions linearly separable half-spaces.',
+    idleHint:
+      'Press Train (or +10 Epochs) and watch the single straight boundary rotate to separate Team Teal from Team Coral.',
+    preset: { dataset: 'linear', hiddenSizes: [], activation: 'tanh', lr: 0.4 },
+  },
+  {
+    id: 2,
+    shortLabel: 'The XOR Trap',
+    title: 'Step 2: The XOR Trap — When One Line Fails!',
+    kidStory:
+      'Now the dots are arranged like a checkerboard (XOR): opposite corners share the same team! Press Train with 0 hidden layers — can a single straight fence ever separate all four corners?',
+    deepStory:
+      'XOR is the classic non-linearly separable problem (Minsky & Papert, 1969). Train with 0 hidden layers to observe why a single hyperplane plateaus near 50% accuracy (MSE ≈ 0.25).',
+    idleHint:
+      'Press Train and watch carefully! Can 1 straight line ever put both Teal corners on the same side?',
+    preset: { dataset: 'xor', hiddenSizes: [], activation: 'tanh', lr: 0.4 },
+  },
+  {
+    id: 3,
+    shortLabel: 'Hidden Layers Bend It',
+    title: 'Step 3: Hidden Layers Bend the Map!',
+    kidStory:
+      'We just added a Hidden Layer of 4 helper neurons! Each helper draws its own simple fence, and the final output neuron combines their votes to bend the boundary around opposite corners. Press Train, then hover or click the map to watch individual neurons light up!',
+    deepStory:
+      'A hidden layer of 4 tanh units projects ℝ² into a 4D feature space where XOR becomes linearly separable. Train to watch the boundary warp, and probe points to inspect per-neuron activations.',
+    idleHint:
+      'Press Train to watch the 4 hidden neurons team up and bend the decision boundary around XOR!',
+    preset: { dataset: 'xor', hiddenSizes: [4], activation: 'tanh', lr: 0.4 },
+  },
+  {
+    id: 4,
+    shortLabel: 'Full Playground',
+    title: 'Step 4: Full Playground (All Controls Unlocked!)',
+    kidStory:
+      'You unlocked the entire lab! Switch between Linear, Circle, XOR, and Spiral, stack up to 3 hidden layers, compare Tanh / ReLU / Sigmoid activations, tune Learning Rate, and beat all 4 Experiment Missions!',
+    deepStory:
+      'Full MLP sandbox unlocked: experiment with dataset manifolds (Circle, Spiral), depth/width capacity (0–3 layers, 1–6 units), activation non-linearities (Tanh, ReLU, Sigmoid), and learning rate η.',
+    idleHint:
+      'Pick any dataset, build your own layer architecture, and press Train to test your hypothesis!',
+    preset: { dataset: 'circle', hiddenSizes: [4], activation: 'tanh', lr: 0.35 },
+  },
+]
+
 const CANVAS_SIZE = 320
 const GRID_RES = 36
 const MAX_SPARKLINE_POINTS = 100
@@ -512,23 +563,27 @@ export default function PlaygroundLab() {
   const nextStage = STAGES.find((s) => s.id === 3)
   const isStageDone = completedStages.has(2)
 
-  // Lab configuration state
-  const [datasetType, setDatasetType] = useState('xor')
-  const [hiddenSizes, setHiddenSizes] = useState([4])
+  // Progressive 4-step guided workflow state (starts on Step 1: One Straight Fence)
+  const [guidedStep, setGuidedStep] = useState(1)
+  const [completedSteps, setCompletedSteps] = useState(() => new Set())
+
+  // Lab configuration state (matches Step 1 preset)
+  const [datasetType, setDatasetType] = useState('linear')
+  const [hiddenSizes, setHiddenSizes] = useState([])
   const [activation, setActivation] = useState('tanh')
-  const [learningRate, setLearningRate] = useState(0.35)
+  const [learningRate, setLearningRate] = useState(0.4)
   const [seed, setSeed] = useState(42)
 
   // Initial network & dataset for clean first render (no setState-in-effect)
   const dataset = useMemo(() => generateDataset(datasetType, 120, 42), [datasetType])
   const initialBundle = useMemo(() => {
-    const initDataset = generateDataset('xor', 120, 42)
+    const initDataset = generateDataset('linear', 120, 42)
     const initNet = createMLP({
       inputSize: 2,
-      hiddenSizes: [4],
+      hiddenSizes: [],
       outputSize: 1,
       activation: 'tanh',
-      learningRate: 0.35,
+      learningRate: 0.4,
       seed: 42,
     })
     const evalRes = initNet.evaluate(initDataset)
@@ -570,6 +625,7 @@ export default function PlaygroundLab() {
   const solvedMissionsRef = useRef(solvedMissions)
   const activeProbeRef = useRef(activeProbe)
   const isPinnedRef = useRef(isPinned)
+  const guidedStepRef = useRef(guidedStep)
   const rafRef = useRef(null)
 
   // Sync refs in effects (React Compiler safe)
@@ -596,6 +652,10 @@ export default function PlaygroundLab() {
     activeProbeRef.current = activeProbe
     isPinnedRef.current = isPinned
   }, [activeProbe, isPinned])
+
+  useEffect(() => {
+    guidedStepRef.current = guidedStep
+  }, [guidedStep])
 
   const fireConfetti = useCallback(() => {
     if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -833,6 +893,22 @@ export default function PlaygroundLab() {
       setProbeTrace(nextTrace)
       drawCanvas(net, pts, probe, isPinnedRef.current)
       checkMissions(result.loss, result.epoch)
+
+      // Mark guided step progress automatically
+      const stepNow = guidedStepRef.current
+      const { datasetType: dsNow, hiddenSizes: hsNow } = configRef.current
+      if (
+        (stepNow === 1 && dsNow === 'linear' && (result.loss < LOSS_TARGET || result.accuracy >= 0.95)) ||
+        (stepNow === 2 && dsNow === 'xor' && hsNow.length === 0 && result.epoch >= 25) ||
+        (stepNow === 3 && dsNow === 'xor' && hsNow.length >= 1 && (result.loss < LOSS_TARGET || result.accuracy >= 0.95))
+      ) {
+        setCompletedSteps((prev) => {
+          if (prev.has(stepNow)) return prev
+          const next = new Set(prev)
+          next.add(stepNow)
+          return next
+        })
+      }
     },
     [drawCanvas, checkMissions],
   )
@@ -921,6 +997,21 @@ export default function PlaygroundLab() {
     })
   }
 
+  const goToStep = (stepId) => {
+    const targetStep = GUIDED_STEPS.find((s) => s.id === stepId)
+    if (!targetStep) return
+    playClick()
+    guidedStepRef.current = stepId
+    setGuidedStep(stepId)
+    applyPreset(targetStep.preset)
+  }
+
+  const jumpToSandbox = () => {
+    playClick()
+    guidedStepRef.current = 4
+    setGuidedStep(4)
+  }
+
   const getCanvasCoords = (e) => {
     const canvas = canvasRef.current
     if (!canvas) return null
@@ -997,6 +1088,60 @@ export default function PlaygroundLab() {
 
   const totalParams = countParameters(snapshot.layerSizes)
   const activeDatasetMeta = DATASET_OPTIONS.find((d) => d.id === datasetType) || DATASET_OPTIONS[0]
+  const activeStepMeta = GUIDED_STEPS.find((s) => s.id === guidedStep) || GUIDED_STEPS[0]
+
+  // Progressive UI disclosure flags (never locks out users — click any step or Free Sandbox!)
+  const showDatasetPicker = guidedStep === 4
+  const showLayerControls = guidedStep >= 3
+  const showAdvancedHyper = guidedStep === 4
+  const showMissions = guidedStep === 4
+
+  // Dynamic "What's Happening Right Now" Live Narrator
+  const isStuckOnXor = datasetType === 'xor' && hiddenSizes.length === 0 && epoch >= 25
+  const isSolvedNow = epoch > 0 && (loss < LOSS_TARGET || accuracy >= 0.95)
+  const probeTeamLabel = probeTrace.output >= 0.5 ? 'Teal' : 'Coral'
+  const probePct = Math.round(
+    (probeTrace.output >= 0.5 ? probeTrace.output : 1 - probeTrace.output) * 100,
+  )
+
+  let narratorTone = 'is-idle'
+  let narratorBadge = 'Ready'
+  let narratorText = activeStepMeta.idleHint
+  let narratorCtaLabel = null
+  let narratorNextStep = null
+
+  if (isStuckOnXor) {
+    narratorTone = 'is-stuck'
+    narratorBadge = 'Stuck at 1969 Limit!'
+    narratorText = `After ${epoch} rounds, accuracy is stuck near ${Math.round(accuracy * 100)}% (Loss ${loss.toFixed(3)})! No single straight fence can ever put opposite XOR corners on the same side — that’s why neural networks need a Hidden Layer!`
+    narratorCtaLabel = 'Add a Hidden Layer (4 Neurons) →'
+    narratorNextStep = 3
+  } else if (isSolvedNow) {
+    narratorTone = 'is-solved'
+    narratorBadge = 'Solved!'
+    if (guidedStep === 1) {
+      narratorText = `Nice! In ${epoch} epochs, one straight fence separated Team Teal and Team Coral (${Math.round(accuracy * 100)}% accuracy, Loss ${loss.toFixed(3)}). Ready to see a puzzle that stumps a single straight line?`
+      narratorCtaLabel = 'Next: Step 2 (The XOR Trap) →'
+      narratorNextStep = 2
+    } else if (guidedStep === 3) {
+      narratorText = `You cracked XOR! The ${hiddenSizes[0] || 4} hidden neurons teamed up to bend the boundary around opposite corners (${Math.round(accuracy * 100)}% accuracy). Hover the map to see which hidden neurons fire for each corner!`
+      narratorCtaLabel = 'Next: Step 4 (Full Playground) →'
+      narratorNextStep = 4
+    } else {
+      narratorText = `Awesome! Your network separated ${activeDatasetMeta.label} at ${Math.round(accuracy * 100)}% accuracy (Loss ${loss.toFixed(3)}). Try a harder dataset or tweak the architecture!`
+    }
+  } else if (isPlaying) {
+    narratorTone = 'is-training'
+    narratorBadge = 'Training Live'
+    narratorText =
+      hiddenSizes.length === 0
+        ? `Epoch ${epoch}: The neuron is nudging its 2 weights (watch the Teal & Coral lines thicken or flip!) to spin the straight fence and shrink Loss (${loss.toFixed(3)}).`
+        : `Epoch ${epoch}: Backpropagation is tuning all ${totalParams} weights & biases (watch the lines change thickness!) so the hidden neurons bend the map and shrink Loss (${loss.toFixed(3)}).`
+  } else if (epoch > 0) {
+    narratorTone = 'is-idle'
+    narratorBadge = 'Paused'
+    narratorText = `Paused at Epoch ${epoch} (${Math.round(accuracy * 100)}% accuracy, Loss ${loss.toFixed(3)}). Press Train to keep learning, or hover/click the 2D map to inspect any point through the neurons.`
+  }
 
   return (
     <div className="lab-page">
@@ -1042,47 +1187,94 @@ export default function PlaygroundLab() {
       </header>
 
       <div className="pg-layout">
-        {/* Mode-aware Intro Callout */}
-        <section className="lab-card pg-intro-row">
-          <div className={isDeepDive ? 'callout-deep' : 'callout-kid'}>
-            <strong>{isDeepDive ? 'Multi-Layer Perceptron (MLP): ' : 'Why Team Up Neurons? '}</strong>
-            {isDeepDive
-              ? 'A single perceptron can only partition ℝ² with one linear hyperplane. Stacking hidden layers with non-linear activations warps the input space so the final output neuron can separate XOR, concentric rings, and spirals.'
-              : 'One neuron can only draw a single straight fence. Stack helper neurons into hidden layers and press Train — watch them bend and curve the map around tricky patterns!'}
+        {/* Progressive 4-Step Guided Workflow Bar + Story Card */}
+        <section className="lab-card pg-guided-card" aria-label="Progressive guided workflow">
+          <div className="pg-stepper-head">
+            <div className="pg-step-pills" role="tablist" aria-label="Guided discovery steps">
+              {GUIDED_STEPS.map((step) => {
+                const isActive = guidedStep === step.id
+                const isDone = completedSteps.has(step.id)
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    className={`pg-step-pill ${isActive ? 'is-active' : ''} ${isDone ? 'is-done' : ''}`}
+                    onClick={() => goToStep(step.id)}
+                  >
+                    <span className="pg-step-num">{isDone ? '✓' : step.id}</span>
+                    <span>{step.shortLabel}</span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {guidedStep < 4 && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={jumpToSandbox}
+              >
+                <Sparkles size={14} />
+                <span>Jump to Free Sandbox</span>
+              </button>
+            )}
           </div>
 
-          {isDeepDive && (
-            <div className="pg-formula-grid">
-              <div className="formula-box">
-                Forward: z⁽ˡ⁾ = W⁽ˡ⁾a⁽ˡ⁻¹⁾ + b⁽ˡ⁾, &nbsp; a⁽ˡ⁾ = f(z⁽ˡ⁾)
+          <div className="pg-story-box">
+            <div className="pg-story-title">{activeStepMeta.title}</div>
+            <p className="pg-story-text">
+              {isDeepDive ? activeStepMeta.deepStory : activeStepMeta.kidStory}
+            </p>
+            {isDeepDive && (
+              <div className="pg-formula-grid">
+                <div className="formula-box">
+                  Forward: z⁽ˡ⁾ = W⁽ˡ⁾a⁽ˡ⁻¹⁾ + b⁽ˡ⁾, &nbsp; a⁽ˡ⁾ = f(z⁽ˡ⁾)
+                </div>
+                <div className="formula-box">
+                  MSE Loss: L = (1/N) Σ (ŷᵢ − yᵢ)², &nbsp; θ ← θ − η∇L
+                </div>
               </div>
-              <div className="formula-box">
-                MSE Loss: L = (1/N) Σ (ŷᵢ − yᵢ)², &nbsp; θ ← θ − η∇L
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </section>
 
-        {/* Top Control Bar: Dataset Selector + Training Controls */}
+        {/* Top Control Bar: Training Controls (+ Dataset Selector in Step 4) */}
         <section className="lab-card pg-toolbar" aria-label="Dataset and training controls">
           <div className="pg-toolbar-top">
-            <div className="pg-toolbar-group">
-              <span className="pg-group-label">Dataset</span>
-              <div className="pg-dataset-pills" role="group" aria-label="Choose dataset">
-                {DATASET_OPTIONS.map((ds) => (
-                  <button
-                    key={ds.id}
-                    type="button"
-                    className={`pg-dataset-btn ${datasetType === ds.id ? 'is-active' : ''}`}
-                    onClick={() => handleSelectDataset(ds.id)}
-                    title={isDeepDive ? ds.deepDesc : ds.kidDesc}
-                  >
-                    <DatasetGlyph type={ds.id} />
-                    <span>{ds.label}</span>
-                  </button>
-                ))}
+            {showDatasetPicker ? (
+              <div className="pg-toolbar-group">
+                <span className="pg-group-label">Dataset</span>
+                <div className="pg-dataset-pills" role="group" aria-label="Choose dataset">
+                  {DATASET_OPTIONS.map((ds) => (
+                    <button
+                      key={ds.id}
+                      type="button"
+                      className={`pg-dataset-btn ${datasetType === ds.id ? 'is-active' : ''}`}
+                      onClick={() => handleSelectDataset(ds.id)}
+                      title={isDeepDive ? ds.deepDesc : ds.kidDesc}
+                    >
+                      <DatasetGlyph type={ds.id} />
+                      <span>{ds.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="pg-toolbar-group">
+                <span className="pg-group-label">Current Puzzle</span>
+                <span className="badge badge-subtle">
+                  <DatasetGlyph type={activeDatasetMeta.id} />
+                  <TermTip id={activeDatasetMeta.id}>{activeDatasetMeta.label}</TermTip>
+                </span>
+                <span className="badge badge-subtle">
+                  {hiddenSizes.length === 0
+                    ? '0 Hidden Layers (1 Neuron)'
+                    : `${hiddenSizes.length} Hidden Layer (${hiddenSizes.join(', ')} neurons)`}
+                </span>
+              </div>
+            )}
 
             <div className="pg-toolbar-group">
               <button
@@ -1117,22 +1309,60 @@ export default function PlaygroundLab() {
           </div>
 
           {/* Immediate 1-line plain-English dataset explainer + clickable TermTips */}
-          <div className="pg-inline-explainer">
-            <span>
-              <TermTip id={activeDatasetMeta.id}>{activeDatasetMeta.label}</TermTip>:{' '}
-              {isDeepDive
-                ? activeDatasetMeta.deepDesc
-                : getGlossaryEntry(activeDatasetMeta.id)?.plain || activeDatasetMeta.kidDesc}
-            </span>
-            <span className="pg-term-chips" aria-label="Dataset glossary quick links">
-              <span>Compare:</span>
-              {DATASET_OPTIONS.filter((ds) => ds.id !== activeDatasetMeta.id).map((ds) => (
-                <TermTip key={`tip-${ds.id}`} id={ds.id}>
-                  {ds.label}
-                </TermTip>
-              ))}
-            </span>
+          {showDatasetPicker && (
+            <div className="pg-inline-explainer">
+              <span>
+                <TermTip id={activeDatasetMeta.id}>{activeDatasetMeta.label}</TermTip>:{' '}
+                {isDeepDive
+                  ? activeDatasetMeta.deepDesc
+                  : getGlossaryEntry(activeDatasetMeta.id)?.plain || activeDatasetMeta.kidDesc}
+              </span>
+              <span className="pg-term-chips" aria-label="Dataset glossary quick links">
+                <span>Compare:</span>
+                {DATASET_OPTIONS.filter((ds) => ds.id !== activeDatasetMeta.id).map((ds) => (
+                  <TermTip key={`tip-${ds.id}`} id={ds.id}>
+                    {ds.label}
+                  </TermTip>
+                ))}
+              </span>
+            </div>
+          )}
+        </section>
+
+        {/* Dynamic "What's Happening Right Now" Live Narrator Banner */}
+        <section
+          className={`pg-narrator ${narratorTone}`}
+          aria-live="polite"
+          aria-label="What is happening right now"
+        >
+          <div className="pg-narrator-left">
+            <span className="pg-narrator-badge">{narratorBadge}</span>
+            <div className="pg-narrator-copy">
+              <span>{narratorText}</span>
+              <span className="pg-narrator-probe">
+                Testing point{' '}
+                <strong className="font-mono">
+                  ({activeProbe.x.toFixed(2)}, {activeProbe.y.toFixed(2)})
+                </strong>{' '}
+                → AI predicts{' '}
+                <strong>
+                  {probePct}% {probeTeamLabel}
+                </strong>
+              </span>
+            </div>
           </div>
+
+          {narratorCtaLabel && narratorNextStep !== null && (
+            <div className="pg-narrator-actions">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => goToStep(narratorNextStep)}
+              >
+                <span>{narratorCtaLabel}</span>
+              </button>
+            </div>
+          )}
         </section>
 
         {/* Celebration Toast when a Mission is Solved */}
@@ -1188,18 +1418,24 @@ export default function PlaygroundLab() {
               )}
             </div>
 
-            <div className="pg-legend-row">
-              <div className="pg-legend-items">
-                <span className="pg-legend-dot">
-                  <span className="pg-dot-swatch pg-dot-teal" />
-                  Team Teal (1)
-                </span>
-                <span className="pg-legend-dot">
-                  <span className="pg-dot-swatch pg-dot-coral" />
-                  Team Coral (0)
-                </span>
-              </div>
-              <span>{isDeepDive ? 'White band = P(y=1) ≈ 0.5' : 'Hover map to test!'}</span>
+            {/* Explicit Visual Legend Pills for 2D Decision Map */}
+            <div className="pg-legend-pills" aria-label="2D map legend">
+              <span className="pg-legend-pill">
+                <span className="pg-dot-swatch pg-dot-teal" />
+                Teal Dot = Team A
+              </span>
+              <span className="pg-legend-pill">
+                <span className="pg-dot-swatch pg-dot-coral" />
+                Coral Dot = Team B
+              </span>
+              <span className="pg-legend-pill">
+                <span className="pg-swatch-shade" />
+                Shaded Area = AI’s Guess
+              </span>
+              <span className="pg-legend-pill">
+                <span className="pg-swatch-crosshair" />
+                Crosshair = Live Probe
+              </span>
             </div>
 
             {/* Live Epoch, Loss, Accuracy Metrics */}
@@ -1251,44 +1487,41 @@ export default function PlaygroundLab() {
               </span>
             </div>
 
-            {/* Add / Remove Hidden Layers */}
-            <div className="pg-arch-controls">
-              <div className="pg-layer-stepper">
-                <span className="pg-group-label">
-                  <TermTip id="hidden-layer">Hidden Layers</TermTip>
-                </span>
-                <button
-                  type="button"
-                  className="pg-icon-btn"
-                  onClick={handleRemoveLayer}
-                  disabled={hiddenSizes.length <= 0}
-                  aria-label="Remove hidden layer"
-                >
-                  <Minus size={15} />
-                </button>
-                <strong className="font-mono">{hiddenSizes.length}</strong>
-                <button
-                  type="button"
-                  className="pg-icon-btn"
-                  onClick={handleAddLayer}
-                  disabled={hiddenSizes.length >= 3}
-                  aria-label="Add hidden layer"
-                >
-                  <Plus size={15} />
-                </button>
-              </div>
+            {/* Add / Remove Hidden Layers (Unlocked from Step 3 onward) */}
+            {showLayerControls && (
+              <div className="pg-arch-controls">
+                <div className="pg-layer-stepper">
+                  <span className="pg-group-label">
+                    <TermTip id="hidden-layer">Hidden Layers</TermTip>
+                  </span>
+                  <button
+                    type="button"
+                    className="pg-icon-btn"
+                    onClick={handleRemoveLayer}
+                    disabled={hiddenSizes.length <= 0}
+                    aria-label="Remove hidden layer"
+                  >
+                    <Minus size={15} />
+                  </button>
+                  <strong className="font-mono">{hiddenSizes.length}</strong>
+                  <button
+                    type="button"
+                    className="pg-icon-btn"
+                    onClick={handleAddLayer}
+                    disabled={hiddenSizes.length >= 3}
+                    aria-label="Add hidden layer"
+                  >
+                    <Plus size={15} />
+                  </button>
+                </div>
 
-              <div className="pg-weight-legend">
-                <span>
-                  <span className="pg-line-swatch pg-line-pos" />
-                  Positive weight
-                </span>
-                <span>
-                  <span className="pg-line-swatch pg-line-neg" />
-                  Negative weight
+                <span className="pg-helper-note">
+                  {hiddenSizes.length === 0
+                    ? 'Direct 2 → 1 neuron (straight line only)'
+                    : 'Click + / − below to add or remove helper neurons'}
                 </span>
               </div>
-            </div>
+            )}
 
             {/* Live Signal Probe Banner */}
             <div className="pg-probe-banner">
@@ -1325,167 +1558,189 @@ export default function PlaygroundLab() {
                 isDeepDive={isDeepDive}
               />
 
-              {/* Per-Layer Neuron Steppers */}
-              <div className="pg-neuron-steppers">
-                {hiddenSizes.length === 0 ? (
-                  <span className="pg-helper-note">
-                    0 hidden layers: inputs connect directly to the output neuron (only straight lines possible!).
-                  </span>
-                ) : (
-                  hiddenSizes.map((count, idx) => (
-                    <div key={`layer-ctrl-${idx}`} className="pg-hidden-chip">
-                      <span>H{idx + 1}:</span>
-                      <button
-                        type="button"
-                        className="pg-mini-step"
-                        onClick={() => handleAdjustNeurons(idx, -1)}
-                        disabled={count <= 1}
-                        aria-label={`Remove neuron from hidden layer ${idx + 1}`}
-                      >
-                        −
-                      </button>
-                      <span className="font-mono">{count}</span>
-                      <button
-                        type="button"
-                        className="pg-mini-step"
-                        onClick={() => handleAdjustNeurons(idx, 1)}
-                        disabled={count >= 6}
-                        aria-label={`Add neuron to hidden layer ${idx + 1}`}
-                      >
-                        +
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Activation & Learning Rate Controls */}
-            <div className="pg-hyper-grid">
-              <div className="pg-hyper-box">
-                <div className="pg-hyper-head">
-                  <span>
-                    <TermTip id="activation">Activation Function</TermTip>
-                  </span>
-                  <span style={{ display: 'inline-flex', gap: 6, fontSize: '0.76rem' }}>
-                    <TermTip id="tanh">Tanh</TermTip>
-                    <TermTip id="relu">ReLU</TermTip>
-                    <TermTip id="sigmoid">Sigmoid</TermTip>
-                  </span>
-                </div>
-                <div className="pg-act-pills" role="group" aria-label="Choose activation function">
-                  {Object.keys(ACTIVATION_INFO).map((actKey) => (
-                    <button
-                      key={actKey}
-                      type="button"
-                      className={`pg-act-btn ${activation === actKey ? 'is-active' : ''}`}
-                      onClick={() => handleSelectActivation(actKey)}
-                    >
-                      {ACTIVATION_INFO[actKey].label}
-                    </button>
-                  ))}
-                </div>
-                <p className="pg-helper-note">
-                  <strong>{ACTIVATION_INFO[activation].label}:</strong>{' '}
-                  {isDeepDive ? ACTIVATION_INFO[activation].deep : ACTIVATION_INFO[activation].kid}
-                </p>
-              </div>
-
-              <div className="pg-hyper-box">
-                <div className="pg-hyper-head">
-                  <label htmlFor="pg-lr-slider">
-                    <TermTip id="learning-rate">
-                      {isDeepDive ? 'Learning Rate (η)' : 'Learning Rate'}
-                    </TermTip>
-                  </label>
-                  <span className="font-mono">{learningRate.toFixed(2)}</span>
-                </div>
-                <input
-                  id="pg-lr-slider"
-                  type="range"
-                  className="pg-slider"
-                  min="0.02"
-                  max="1.2"
-                  step="0.02"
-                  value={learningRate}
-                  onChange={(e) => setLearningRate(Number(e.target.value))}
-                />
-                <p className="pg-helper-note">
-                  {isDeepDive
-                    ? 'Scales gradient descent steps Δθ = −η∇L. Too small converges slowly; too large oscillates.'
-                    : 'Bigger steps learn faster, but too fast can make the network bounce past the answer!'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Kid-Friendly Experiment Missions */}
-        <section className="lab-card pg-missions-card" aria-label="Experiment Missions">
-          <div className="pg-panel-head">
-            <h2 className="pg-panel-title">
-              <Trophy size={18} color="#f59e0b" />
-              <span>Experiment Missions</span>
-            </h2>
-            <span className="badge badge-success">
-              {solvedMissions.size} / {MISSIONS.length} Solved
-            </span>
-          </div>
-
-          <div className="pg-missions-grid">
-            {MISSIONS.map((mission) => {
-              const isSolved = solvedMissions.has(mission.id)
-              const isCurrent = datasetType === mission.dataset
-
-              return (
-                <div
-                  key={mission.id}
-                  className={`pg-mission-item ${isSolved ? 'is-solved' : isCurrent ? 'is-active' : ''}`}
-                >
-                  <div className="pg-mission-top">
-                    <div className="pg-mission-title">{mission.title}</div>
-                    {isSolved ? (
-                      <span className="badge badge-success">
-                        <CheckCircle2 size={12} />
-                        Solved!
-                      </span>
-                    ) : (
-                      <span className="badge badge-subtle">
-                        {isCurrent ? 'Active' : 'Ready'}
-                      </span>
-                    )}
-                  </div>
-
-                  <p className="pg-mission-desc">
-                    {isDeepDive ? mission.deepDesc : mission.kidDesc}
-                  </p>
-
-                  <div className="pg-mission-actions">
-                    <span className="pg-mission-goal">{mission.goalLabel}</span>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => applyPreset(mission.preset)}
-                      >
-                        {mission.id === 'xor' ? 'Try 1-Neuron' : 'Load Mission'}
-                      </button>
-                      {mission.boostPreset && (
+              {/* Per-Layer Neuron Steppers (Step 3+) */}
+              {showLayerControls && (
+                <div className="pg-neuron-steppers">
+                  {hiddenSizes.length === 0 ? (
+                    <span className="pg-helper-note">
+                      0 hidden layers: inputs connect directly to the output neuron (only straight lines possible!).
+                    </span>
+                  ) : (
+                    hiddenSizes.map((count, idx) => (
+                      <div key={`layer-ctrl-${idx}`} className="pg-hidden-chip">
+                        <span>H{idx + 1}:</span>
                         <button
                           type="button"
-                          className="btn btn-primary btn-sm"
-                          onClick={() => applyPreset(mission.boostPreset)}
+                          className="pg-mini-step"
+                          onClick={() => handleAdjustNeurons(idx, -1)}
+                          disabled={count <= 1}
+                          aria-label={`Remove neuron from hidden layer ${idx + 1}`}
                         >
-                          Try 4 Neurons
+                          −
                         </button>
-                      )}
-                    </div>
-                  </div>
+                        <span className="font-mono">{count}</span>
+                        <button
+                          type="button"
+                          className="pg-mini-step"
+                          onClick={() => handleAdjustNeurons(idx, 1)}
+                          disabled={count >= 6}
+                          aria-label={`Add neuron to hidden layer ${idx + 1}`}
+                        >
+                          +
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
-              )
-            })}
+              )}
+            </div>
+
+            {/* Explicit Visual Legend Pills for SVG Network Diagram */}
+            <div className="pg-legend-pills" aria-label="Network diagram legend">
+              <span className="pg-legend-pill">
+                <span className="pg-line-swatch pg-line-pos" style={{ marginRight: 0 }} />
+                Teal Line = Positive Vote (+)
+              </span>
+              <span className="pg-legend-pill">
+                <span className="pg-line-swatch pg-line-neg" style={{ marginRight: 0 }} />
+                Coral Line = Negative Vote (−)
+              </span>
+              <span className="pg-legend-pill">
+                <span className="pg-swatch-node-glow" />
+                Bright Node = Strongly Firing
+              </span>
+            </div>
+
+            {/* Activation & Learning Rate Controls (Unlocked in Step 4: Full Playground) */}
+            {showAdvancedHyper && (
+              <div className="pg-hyper-grid">
+                <div className="pg-hyper-box">
+                  <div className="pg-hyper-head">
+                    <span>
+                      <TermTip id="activation">Activation Function</TermTip>
+                    </span>
+                    <span style={{ display: 'inline-flex', gap: 6, fontSize: '0.76rem' }}>
+                      <TermTip id="tanh">Tanh</TermTip>
+                      <TermTip id="relu">ReLU</TermTip>
+                      <TermTip id="sigmoid">Sigmoid</TermTip>
+                    </span>
+                  </div>
+                  <div className="pg-act-pills" role="group" aria-label="Choose activation function">
+                    {Object.keys(ACTIVATION_INFO).map((actKey) => (
+                      <button
+                        key={actKey}
+                        type="button"
+                        className={`pg-act-btn ${activation === actKey ? 'is-active' : ''}`}
+                        onClick={() => handleSelectActivation(actKey)}
+                      >
+                        {ACTIVATION_INFO[actKey].label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="pg-helper-note">
+                    <strong>{ACTIVATION_INFO[activation].label}:</strong>{' '}
+                    {isDeepDive ? ACTIVATION_INFO[activation].deep : ACTIVATION_INFO[activation].kid}
+                  </p>
+                </div>
+
+                <div className="pg-hyper-box">
+                  <div className="pg-hyper-head">
+                    <label htmlFor="pg-lr-slider">
+                      <TermTip id="learning-rate">
+                        {isDeepDive ? 'Learning Rate (η)' : 'Learning Rate'}
+                      </TermTip>
+                    </label>
+                    <span className="font-mono">{learningRate.toFixed(2)}</span>
+                  </div>
+                  <input
+                    id="pg-lr-slider"
+                    type="range"
+                    className="pg-slider"
+                    min="0.02"
+                    max="1.2"
+                    step="0.02"
+                    value={learningRate}
+                    onChange={(e) => setLearningRate(Number(e.target.value))}
+                  />
+                  <p className="pg-helper-note">
+                    {isDeepDive
+                      ? 'Scales gradient descent steps Δθ = −η∇L. Too small converges slowly; too large oscillates.'
+                      : 'Bigger steps learn faster, but too fast can make the network bounce past the answer!'}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </section>
+
+        {/* Kid-Friendly Experiment Missions (Unlocked in Step 4: Full Playground) */}
+        {showMissions && (
+          <section className="lab-card pg-missions-card" aria-label="Experiment Missions">
+            <div className="pg-panel-head">
+              <h2 className="pg-panel-title">
+                <Trophy size={18} color="#f59e0b" />
+                <span>Experiment Missions</span>
+              </h2>
+              <span className="badge badge-success">
+                {solvedMissions.size} / {MISSIONS.length} Solved
+              </span>
+            </div>
+
+            <div className="pg-missions-grid">
+              {MISSIONS.map((mission) => {
+                const isSolved = solvedMissions.has(mission.id)
+                const isCurrent = datasetType === mission.dataset
+
+                return (
+                  <div
+                    key={mission.id}
+                    className={`pg-mission-item ${isSolved ? 'is-solved' : isCurrent ? 'is-active' : ''}`}
+                  >
+                    <div className="pg-mission-top">
+                      <div className="pg-mission-title">{mission.title}</div>
+                      {isSolved ? (
+                        <span className="badge badge-success">
+                          <CheckCircle2 size={12} />
+                          Solved!
+                        </span>
+                      ) : (
+                        <span className="badge badge-subtle">
+                          {isCurrent ? 'Active' : 'Ready'}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="pg-mission-desc">
+                      {isDeepDive ? mission.deepDesc : mission.kidDesc}
+                    </p>
+
+                    <div className="pg-mission-actions">
+                      <span className="pg-mission-goal">{mission.goalLabel}</span>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary btn-sm"
+                          onClick={() => applyPreset(mission.preset)}
+                        >
+                          {mission.id === 'xor' ? 'Try 1-Neuron' : 'Load Mission'}
+                        </button>
+                        {mission.boostPreset && (
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-sm"
+                            onClick={() => applyPreset(mission.boostPreset)}
+                          >
+                            Try 4 Neurons
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
       </div>
 
       {/* Footer Navigation */}
