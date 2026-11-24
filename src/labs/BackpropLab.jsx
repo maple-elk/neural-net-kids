@@ -21,6 +21,7 @@ import {
 import { useLearning } from '../context/LearningContext.jsx'
 import { getStageById } from '../utils/pathwayLoader.js'
 import { playClick, playStep, playSuccess } from '../utils/sound.js'
+import TermTip from '../components/TermTip.jsx'
 import './BackpropLab.css'
 
 const RANGE = 2
@@ -201,7 +202,9 @@ function LossMountainPanel({ isDeepDive }) {
     <div className="bp-grid">
       <section className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
-          <h2 style={{ fontSize: '1.22rem' }}>⛰️ Loss Mountain (Gradient Descent)</h2>
+          <h2 style={{ fontSize: '1.22rem' }}>
+            ⛰️ <TermTip id="loss">Loss</TermTip> Mountain (<TermTip id="gradient-descent">Gradient Descent</TermTip>)
+          </h2>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', marginTop: 2 }}>
             Click anywhere on the map to drop the hiker! Green is the low-error valley; red is the high-error mountain peak.
           </p>
@@ -289,7 +292,7 @@ function LossMountainPanel({ isDeepDive }) {
 
         <div className="clue-row">
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', fontWeight: 700 }}>
-            <span>Learning Rate (η)</span>
+            <span><TermTip id="learning-rate">Learning Rate</TermTip> (η)</span>
             <span className="font-mono" style={{ color: '#dc2626' }}>
               {lr.toFixed(2)}
             </span>
@@ -806,14 +809,14 @@ export default function BackpropLab() {
       <div className={isDeepDive ? 'callout-deep' : 'callout-kid'}>
         {isDeepDive ? (
           <>
-            <strong>Optimization &amp; Chain Rule:</strong> Neural networks minimize a differentiable loss
-            function by computing exact partial derivatives via backpropagation and taking gradient descent steps{' '}
+            <strong>Optimization &amp; Chain Rule:</strong> Neural networks minimize a differentiable <TermTip id="loss">loss</TermTip>
+            {' '}function by computing exact partial derivatives via <TermTip id="backprop">backpropagation</TermTip> and taking <TermTip id="gradient-descent">gradient descent</TermTip> steps{' '}
             <code>θ ← θ − η∇L(θ)</code>.
           </>
         ) : (
           <>
-            <strong>How AI learns:</strong> First, the network makes a guess and sees how wrong it was (Loss).
-            Then it walks downhill on <strong>Loss Mountain</strong> by sending a backward &ldquo;blame signal&rdquo; to
+            <strong>How AI learns:</strong> First, the network makes a guess and sees how wrong it was (<TermTip id="loss">Loss</TermTip>).
+            Then it walks downhill on <strong>Loss Mountain</strong> (<TermTip id="gradient-descent">Gradient Descent</TermTip>) by sending a backward &ldquo;blame signal&rdquo; (<TermTip id="backprop">Backprop</TermTip>) to
             nudge every weight!
           </>
         )}

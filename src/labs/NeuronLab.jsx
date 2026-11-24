@@ -20,6 +20,7 @@ import {
 import { useLearning } from '../context/LearningContext.jsx'
 import { getStageById } from '../utils/pathwayLoader.js'
 import { playClick, playNeuronFire, playSuccess } from '../utils/sound.js'
+import TermTip from '../components/TermTip.jsx'
 import './NeuronLab.css'
 
 function formatSigned(val, decimals = 1) {
@@ -472,14 +473,14 @@ export default function NeuronLab() {
       <div className={isDeepDive ? 'callout-deep' : 'callout-kid'}>
         {isDeepDive ? (
           <>
-            <strong>Perceptron Model:</strong> Computes a linear combination{' '}
-            <code>z = Σ(wᵢ · xᵢ) + b</code> and passes it through either a Heaviside step function{' '}
-            <code>u(z)</code> or logistic sigmoid <code>σ(z) = 1 / (1 + e⁻ᶻ)</code>.
+            <strong><TermTip id="perceptron">Perceptron</TermTip> Model:</strong> Computes a linear combination{' '}
+            <code>z = Σ(wᵢ · xᵢ) + b</code> and passes it through either a <TermTip id="step">Step</TermTip> function{' '}
+            <code>u(z)</code> or logistic <TermTip id="sigmoid">Sigmoid</TermTip> <code>σ(z) = 1 / (1 + e⁻ᶻ)</code>.
           </>
         ) : (
           <>
             <strong>How it works:</strong> An artificial neuron checks clues (inputs), multiplies each
-            clue by how important it is (weight), adds a starting nudge (bias), and fires if the total
+            clue by how important it is (<TermTip id="weight">weight</TermTip>), adds a starting nudge (<TermTip id="bias">bias</TermTip>), and fires if the total
             score reaches <strong>0 or higher</strong>!
           </>
         )}
@@ -571,7 +572,9 @@ export default function NeuronLab() {
 
             <section className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
-                <h3 style={{ fontSize: '1.08rem', marginBottom: 4 }}>Clues &amp; Importance Weights</h3>
+                <h3 style={{ fontSize: '1.08rem', marginBottom: 4 }}>
+                  Clues &amp; Importance <TermTip id="weight">Weights</TermTip>
+                </h3>
                 <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
                   Toggle each clue ON/OFF and drag its weight slider. Positive = vote YES, Negative = vote NO.
                 </p>
@@ -620,7 +623,7 @@ export default function NeuronLab() {
 
                 <div className="clue-row" style={{ background: '#eef2ff', borderColor: '#c7d2fe' }}>
                   <div className="weight-slider-row">
-                    <strong>Bias (b)</strong>
+                    <strong><TermTip id="bias">Bias</TermTip> (b)</strong>
                     <input
                       type="range"
                       min="-5"
@@ -643,7 +646,12 @@ export default function NeuronLab() {
               </div>
 
               <div>
-                <h4 style={{ fontSize: '0.92rem', marginBottom: 8 }}>Activation Function</h4>
+                <h4 style={{ fontSize: '0.92rem', marginBottom: 8 }}>
+                  <TermTip id="activation">Activation Function</TermTip>{' '}
+                  <span style={{ fontWeight: 500, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    (<TermTip id="step">Step</TermTip> vs <TermTip id="sigmoid">Sigmoid</TermTip>)
+                  </span>
+                </h4>
                 <div className="activation-toggle">
                   <button
                     type="button"

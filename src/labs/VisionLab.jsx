@@ -35,6 +35,7 @@ import {
 } from '../engine/convolution.js'
 import { CHARSETS, createCharRecognizer } from '../engine/charRecognizer.js'
 import { playClick, playRecognize, playSuccess } from '../utils/sound.js'
+import TermTip from '../components/TermTip.jsx'
 import './VisionLab.css'
 
 /* ==========================================================================
@@ -1724,9 +1725,24 @@ export default function VisionLab() {
       {/* Mode-Adaptive Intro Callout */}
       <div className={isDeepDive ? 'callout-deep' : 'callout-kid'}>
         <strong>{isDeepDive ? 'Deep-Dive Vision Lab: ' : 'How do computers see? '}</strong>
-        {isDeepDive
-          ? 'Convolutional Neural Networks (CNNs) replace hand-crafted rules with learned 2D spatial filters. Inspect exact 3×3 discrete convolution math, run a MobileNet-backed COCO-SSD detector in WebGL/CPU, and train a feature-space classifier.'
-          : 'Computers don’t have eyes—they only see grids of numbers! First slide a magic 3×3 pattern filter over pixel art, then test a real object-detecting AI, and finally teach your own mini-brain to recognize your drawings!'}
+        {isDeepDive ? (
+          <>
+            Convolutional Neural Networks (CNNs) use 2D{' '}
+            <TermTip id="convolution">convolution</TermTip> with learned{' '}
+            <TermTip id="kernel">kernels</TermTip>, spatial{' '}
+            <TermTip id="pooling">pooling</TermTip>, and{' '}
+            <TermTip id="softmax">softmax</TermTip> heads to turn raw pixel grids into object
+            predictions.
+          </>
+        ) : (
+          <>
+            Computers don’t have eyes—they only see grids of numbers! Slide a 3×3{' '}
+            <TermTip id="convolution">convolution</TermTip> magnifying glass over pixel art, watch{' '}
+            <TermTip id="pooling">pooling</TermTip> &amp;{' '}
+            <TermTip id="softmax">softmax</TermTip> read your handwriting, test a real camera AI,
+            and teach your own mini-brain!
+          </>
+        )}
       </div>
 
       {/* 4-Tab Switcher */}
@@ -1826,7 +1842,7 @@ export default function VisionLab() {
             }}
           >
             <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-              Choose what to search for:{' '}
+              Choose a 3×3 <TermTip id="kernel">filter kernel</TermTip>:{' '}
               <span style={{ color: '#059669' }}>■ Green = wants ink</span> ·{' '}
               <span style={{ color: '#e11d48' }}>■ Pink = wants empty</span>
             </div>
@@ -2299,9 +2315,17 @@ export default function VisionLab() {
               </div>
 
               <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                {isDeepDive
-                  ? '16×16 normalized ink → 4×4 average pooling → 16 input neurons below. Hover any zone to trace its exact block & synapses!'
-                  : 'We average each dashed 4×4 square into 1 brightness number. Hover any square to highlight its matching neuron below!'}
+                {isDeepDive ? (
+                  <>
+                    16×16 normalized ink → 4×4 average <TermTip id="pooling">pooling</TermTip> → 16
+                    input neurons below. Hover any zone to trace its exact block &amp; synapses!
+                  </>
+                ) : (
+                  <>
+                    <TermTip id="pooling">Pooling</TermTip> averages each dashed 4×4 square into 1
+                    brightness number. Hover any square to highlight its matching neuron below!
+                  </>
+                )}
               </p>
             </div>
 
@@ -2435,9 +2459,19 @@ export default function VisionLab() {
 
           <div className={isDeepDive ? 'callout-deep' : 'callout-kid'} style={{ marginTop: 18 }}>
             <strong>{isDeepDive ? 'How MNIST-Style Recognition Works: ' : 'How did it read my handwriting? '}</strong>
-            {isDeepDive
-              ? 'Raw canvas strokes are cropped to their tight bounding box, aspect-scaled into a 12×12 box centered by center-of-mass inside a 16×16 grid (256 pixels). Multi-orientation gradient histograms (HOG) + smoothed intensities are compared via cosine similarity and converted to probabilities with softmax—and "Teach" adds your own prototype directly to the classifier.'
-              : 'First the AI trims away empty space and centers your stroke inside a 16×16 pixel grid. Then it checks which way your lines curve and slant, scores every character, and picks the highest probability! If it misses your unique style, click "Teach" and it learns immediately.'}
+            {isDeepDive ? (
+              <>
+                Raw canvas strokes are cropped, centered onto a 16×16 grid (256 pixels), summarized
+                via 4×4 <TermTip id="pooling">pooling</TermTip> &amp; gradient features, and turned
+                into class probabilities with <TermTip id="softmax">softmax</TermTip>.
+              </>
+            ) : (
+              <>
+                First the AI trims empty space and centers your stroke inside a 16×16 grid, shrinks
+                it with <TermTip id="pooling">pooling</TermTip>, scores every character, and uses{' '}
+                <TermTip id="softmax">softmax</TermTip> to turn those scores into percentages!
+              </>
+            )}
           </div>
         </section>
       )}

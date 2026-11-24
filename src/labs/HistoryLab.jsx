@@ -21,6 +21,7 @@ import { HISTORY_ERAS, LLM_HISTORY_MILESTONES } from '../data/history.js'
 import { getStageById } from '../data/pathway.js'
 import { useLearning } from '../context/LearningContext.jsx'
 import { playClick, playSuccess } from '../utils/sound.js'
+import TermTip from '../components/TermTip.jsx'
 import './HistoryLab.css'
 
 const HISTORY_QUIZ = [
@@ -212,9 +213,23 @@ export default function HistoryLab() {
           </div>
           <h1 className="history-header-title">The Story of AI &amp; LLMs (1943–2026)</h1>
           <p className="history-header-lead">
-            {isDeepDive
-              ? 'Trace 80+ years of breakthroughs — from McCulloch–Pitts threshold logic and backpropagation to Word2Vec, Transformers, RLHF, and modern reasoning systems.'
-              : 'Travel through time to see how one tiny paper brain cell from 1943 grew into today’s smart chatbots — and jump right back into the lab behind each invention!'}
+            {isDeepDive ? (
+              <>
+                Trace 80+ years of breakthroughs — from the early{' '}
+                <TermTip id="perceptron">perceptron</TermTip> and{' '}
+                <TermTip id="backprop">backpropagation</TermTip> to{' '}
+                <TermTip id="transformer">Transformers</TermTip>,{' '}
+                <TermTip id="rlhf">RLHF</TermTip>, and modern reasoning systems.
+              </>
+            ) : (
+              <>
+                Travel through time to see how one tiny{' '}
+                <TermTip id="perceptron">perceptron</TermTip> from 1943 grew through{' '}
+                <TermTip id="backprop">backpropagation</TermTip>,{' '}
+                <TermTip id="transformer">Transformers</TermTip>, and{' '}
+                <TermTip id="rlhf">RLHF</TermTip> into today’s smart chatbots!
+              </>
+            )}
           </p>
         </div>
 

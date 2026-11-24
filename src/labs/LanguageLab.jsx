@@ -19,6 +19,7 @@ import {
   wordMath,
 } from '../engine/miniLlm.js'
 import { playClick, playSuccess } from '../utils/sound.js'
+import TermTip from '../components/TermTip.jsx'
 import './LanguageLab.css'
 
 const TOKEN_PRESETS = [
@@ -214,7 +215,8 @@ export default function LanguageLab() {
               </h2>
             </div>
             <p className="lang-section-desc">
-              Type any sentence below or tap a preset. Watch how AI splits long words into reusable pieces and gives each piece a numeric Token ID.
+              Type any sentence below or tap a preset. Watch how AI splits long words into reusable{' '}
+              <TermTip id="token">tokens</TermTip> and gives each piece a numeric Token ID.
             </p>
           </div>
         </div>
@@ -326,7 +328,7 @@ export default function LanguageLab() {
               </h2>
             </div>
             <p className="lang-section-desc">
-              AI turns every word into coordinates on a Meaning Map. Words with similar meanings live in the same neighborhood—so you can literally do math with meanings!
+              AI turns every word into a coordinate <TermTip id="embedding">embedding</TermTip> on a Meaning Map. Words with similar meanings live in the same neighborhood—so you can literally do math with meanings!
             </p>
           </div>
         </div>
@@ -689,7 +691,8 @@ export default function LanguageLab() {
               </h2>
             </div>
             <p className="lang-section-desc">
-              Words change meaning depending on their neighbors! Flip just ONE word between each pair below and watch the attention spotlight jump to the right clue.
+              Words change meaning depending on their neighbors! Flip just ONE word between each pair below and watch the{' '}
+              <TermTip id="attention">self-attention</TermTip> spotlight jump to the right clue.
             </p>
           </div>
         </div>

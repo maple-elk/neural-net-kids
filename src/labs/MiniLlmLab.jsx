@@ -21,6 +21,7 @@ import {
   tokenizeForModel,
 } from '../engine/miniLlm.js'
 import { playSuccess, playTokenPop } from '../utils/sound.js'
+import TermTip from '../components/TermTip.jsx'
 import './MiniLlmLab.css'
 
 const CORPUS_PROMPTS = {
@@ -420,7 +421,8 @@ export default function MiniLlmLab() {
               </h2>
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.93rem', marginTop: 4 }}>
-              Roll the weighted dice to generate one token at a time, or hit Auto-Generate and watch the 4-step autoregressive loop in action!
+              Roll the weighted dice to generate one token at a time, or hit Auto-Generate and watch the 4-step{' '}
+              <TermTip id="autoregressive">autoregressive</TermTip> loop in action!
             </p>
           </div>
         </div>
@@ -570,9 +572,13 @@ export default function MiniLlmLab() {
 
               <div className="dial-row">
                 <div className="dial-header">
-                  <label htmlFor="temp-slider">
-                    Temperature: <span className="font-mono">{temperature.toFixed(2)}</span>
-                  </label>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <label htmlFor="temp-slider" className="sr-only" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)' }}>
+                      Temperature
+                    </label>
+                    <TermTip id="temperature">Temperature</TermTip>:
+                    <span className="font-mono">{temperature.toFixed(2)}</span>
+                  </span>
                   <span
                     className="dial-mood-badge"
                     style={{
@@ -603,9 +609,13 @@ export default function MiniLlmLab() {
 
               <div className="dial-row">
                 <div className="dial-header">
-                  <label htmlFor="topk-slider">
-                    Top-K Candidates: <span className="font-mono">{topK}</span>
-                  </label>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <label htmlFor="topk-slider" style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0, 0, 0, 0)' }}>
+                      Top-K Candidates
+                    </label>
+                    <TermTip id="top-k">Top-K</TermTip> Candidates:
+                    <span className="font-mono">{topK}</span>
+                  </span>
                   <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                     Keep top {topK} next words
                   </span>
@@ -718,10 +728,12 @@ export default function MiniLlmLab() {
           </div>
 
           <div className="scale-card">
-            <span className="scale-step-pill">Step 3 · RLHF</span>
+            <span className="scale-step-pill">
+              Step 3 · <TermTip id="rlhf">RLHF</TermTip>
+            </span>
             <h3>Learn from Human Feedback</h3>
             <p>
-              Humans rate which answers are most helpful, honest, and safe. Using Reinforcement Learning from Human Feedback (RLHF), the AI polishes its manners—ready for the big history story in Stage 7!
+              Humans rate which answers are most helpful, honest, and safe. Using Reinforcement Learning from Human Feedback (<TermTip id="rlhf">RLHF</TermTip>), the AI polishes its manners—ready for the big history story in Stage 7!
             </p>
           </div>
         </div>

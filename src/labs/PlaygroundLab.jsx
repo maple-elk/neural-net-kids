@@ -15,7 +15,9 @@ import {
   StepForward,
   Trophy,
 } from 'lucide-react'
+import TermTip from '../components/TermTip.jsx'
 import { useLearning } from '../context/LearningContext.jsx'
+import { getGlossaryEntry } from '../data/glossary.js'
 import { createMLP, evaluateGrid, generateDataset } from '../engine/mlp.js'
 import { getStageById, STAGES } from '../utils/pathwayLoader.js'
 import { playClick, playSuccess } from '../utils/sound.js'
@@ -25,43 +27,47 @@ const DATASET_OPTIONS = [
   {
     id: 'linear',
     label: 'Linear',
-    kidDesc: 'Two groups split by a straight line',
-    deepDesc: 'Linearly separable half-spaces (x + y ≥ 0)',
+    kidDesc:
+      'Linear: Two teams split cleanly by a single straight line — easy even with 0 hidden layers!',
+    deepDesc: 'Linearly separable half-spaces (x + y ≥ 0) — solvable by a single affine hyperplane.',
   },
   {
     id: 'circle',
     label: 'Circle',
-    kidDesc: 'An inner island inside an outer ring',
-    deepDesc: 'Concentric radial boundary (r < 0.5 vs r > 0.65)',
+    kidDesc:
+      'Circle: An inner teal island surrounded by a coral ring — you need a hidden layer to bend a fence around it!',
+    deepDesc: 'Concentric radial boundary (r < 0.5 vs r > 0.65) requiring a closed non-linear decision region.',
   },
   {
     id: 'xor',
     label: 'XOR',
-    kidDesc: 'Opposite corners match — no single line works!',
-    deepDesc: 'Classic non-linearly separable quadrant parity (x·y > 0)',
+    kidDesc:
+      'XOR ("Exclusive OR"): Opposite corners share a team like a checkerboard — impossible for 1 straight line, so you need a hidden layer!',
+    deepDesc: 'Classic non-linearly separable quadrant parity (x·y > 0) requiring ≥2 hidden units to fold space.',
   },
   {
     id: 'spiral',
     label: 'Spiral',
-    kidDesc: 'Two swirling arms twisted together',
-    deepDesc: 'Intertwined 2-arm Archimedean spiral manifold',
+    kidDesc:
+      'Spiral: Two galaxy arms twisted around each other — the hardest puzzle, needing 2–3 hidden layers to weave between them!',
+    deepDesc: 'Intertwined 2-arm Archimedean spiral manifold requiring deeper compositional representations.',
   },
 ]
 
 const ACTIVATION_INFO = {
   tanh: {
-    label: 'tanh',
-    kid: 'Smooth S-curve (-1 to +1) — great all-rounder for curves!',
+    label: 'Tanh',
+    kid: 'Smoothly squishes any number into a range from −1 to +1, centered at zero — great all-rounder for curved shapes!',
     deep: 'tanh(z) ∈ (−1, 1), derivative 1 − tanh²(z). Zero-centered outputs speed convergence.',
   },
   relu: {
-    label: 'relu',
-    kid: 'Keeps positive signals and turns negative ones to 0.',
+    label: 'ReLU',
+    kid: 'Turns negative numbers into 0 and keeps positive numbers as-is — like a one-way gate that only passes positive signals!',
     deep: 'ReLU(z) = max(0, z), derivative 1 if z > 0 else 0. Creates piecewise-linear folds.',
   },
   sigmoid: {
-    label: 'sigmoid',
-    kid: 'Squashes any number smoothly between 0 and 1.',
+    label: 'Sigmoid',
+    kid: 'Smoothly squishes any number into a 0% to 100% probability (between 0 and 1)!',
     deep: 'σ(z) = 1 / (1 + e⁻ᶻ), derivative σ(z)(1 − σ(z)). Can saturate in deeper networks.',
   },
 }
@@ -1059,53 +1065,73 @@ export default function PlaygroundLab() {
 
         {/* Top Control Bar: Dataset Selector + Training Controls */}
         <section className="lab-card pg-toolbar" aria-label="Dataset and training controls">
-          <div className="pg-toolbar-group">
-            <span className="pg-group-label">Dataset</span>
-            <div className="pg-dataset-pills" role="group" aria-label="Choose dataset">
-              {DATASET_OPTIONS.map((ds) => (
-                <button
-                  key={ds.id}
-                  type="button"
-                  className={`pg-dataset-btn ${datasetType === ds.id ? 'is-active' : ''}`}
-                  onClick={() => handleSelectDataset(ds.id)}
-                  title={isDeepDive ? ds.deepDesc : ds.kidDesc}
-                >
-                  <DatasetGlyph type={ds.id} />
-                  <span>{ds.label}</span>
-                </button>
-              ))}
+          <div className="pg-toolbar-top">
+            <div className="pg-toolbar-group">
+              <span className="pg-group-label">Dataset</span>
+              <div className="pg-dataset-pills" role="group" aria-label="Choose dataset">
+                {DATASET_OPTIONS.map((ds) => (
+                  <button
+                    key={ds.id}
+                    type="button"
+                    className={`pg-dataset-btn ${datasetType === ds.id ? 'is-active' : ''}`}
+                    onClick={() => handleSelectDataset(ds.id)}
+                    title={isDeepDive ? ds.deepDesc : ds.kidDesc}
+                  >
+                    <DatasetGlyph type={ds.id} />
+                    <span>{ds.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="pg-toolbar-group">
+              <button
+                type="button"
+                className={`btn pg-play-btn ${isPlaying ? 'is-running' : 'btn-primary'}`}
+                onClick={handleTogglePlay}
+              >
+                {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                <span>{isPlaying ? 'Pause' : 'Train'}</span>
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleStep10}
+                title="Run 10 training epochs"
+              >
+                <StepForward size={15} />
+                <span>+10 Epochs</span>
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={handleResetWeights}
+                title="Reset network weights with a fresh random seed"
+              >
+                <RotateCcw size={15} />
+                <span>Reset Weights</span>
+              </button>
             </div>
           </div>
 
-          <div className="pg-toolbar-group">
-            <button
-              type="button"
-              className={`btn pg-play-btn ${isPlaying ? 'is-running' : 'btn-primary'}`}
-              onClick={handleTogglePlay}
-            >
-              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-              <span>{isPlaying ? 'Pause' : 'Train'}</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={handleStep10}
-              title="Run 10 training epochs"
-            >
-              <StepForward size={15} />
-              <span>+10 Epochs</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={handleResetWeights}
-              title="Reset network weights with a fresh random seed"
-            >
-              <RotateCcw size={15} />
-              <span>Reset Weights</span>
-            </button>
+          {/* Immediate 1-line plain-English dataset explainer + clickable TermTips */}
+          <div className="pg-inline-explainer">
+            <span>
+              <TermTip id={activeDatasetMeta.id}>{activeDatasetMeta.label}</TermTip>:{' '}
+              {isDeepDive
+                ? activeDatasetMeta.deepDesc
+                : getGlossaryEntry(activeDatasetMeta.id)?.plain || activeDatasetMeta.kidDesc}
+            </span>
+            <span className="pg-term-chips" aria-label="Dataset glossary quick links">
+              <span>Compare:</span>
+              {DATASET_OPTIONS.filter((ds) => ds.id !== activeDatasetMeta.id).map((ds) => (
+                <TermTip key={`tip-${ds.id}`} id={ds.id}>
+                  {ds.label}
+                </TermTip>
+              ))}
+            </span>
           </div>
         </section>
 
@@ -1135,7 +1161,9 @@ export default function PlaygroundLab() {
             <div className="pg-panel-head">
               <h2 className="pg-panel-title">
                 <Sparkles size={18} color="#6366f1" />
-                <span>2D Decision Map</span>
+                <span>
+                  2D <TermTip id="decision-boundary">Decision Boundary</TermTip> Map
+                </span>
               </h2>
               <span className="badge badge-subtle">
                 {activeDatasetMeta.label}
@@ -1177,11 +1205,15 @@ export default function PlaygroundLab() {
             {/* Live Epoch, Loss, Accuracy Metrics */}
             <div className="pg-metrics-grid">
               <div className="pg-metric-box">
-                <span className="pg-metric-label">Epoch</span>
+                <span className="pg-metric-label">
+                  <TermTip id="epoch">Epoch</TermTip>
+                </span>
                 <span className="pg-metric-val">{epoch}</span>
               </div>
               <div className="pg-metric-box">
-                <span className="pg-metric-label">{isDeepDive ? 'MSE Loss' : 'Mistake Score'}</span>
+                <span className="pg-metric-label">
+                  <TermTip id="loss">{isDeepDive ? 'MSE Loss' : 'Loss'}</TermTip>
+                </span>
                 <span className={`pg-metric-val ${loss < LOSS_TARGET ? 'is-solved' : ''}`}>
                   {loss.toFixed(4)}
                 </span>
@@ -1222,7 +1254,9 @@ export default function PlaygroundLab() {
             {/* Add / Remove Hidden Layers */}
             <div className="pg-arch-controls">
               <div className="pg-layer-stepper">
-                <span className="pg-group-label">Hidden Layers</span>
+                <span className="pg-group-label">
+                  <TermTip id="hidden-layer">Hidden Layers</TermTip>
+                </span>
                 <button
                   type="button"
                   className="pg-icon-btn"
@@ -1330,8 +1364,14 @@ export default function PlaygroundLab() {
             <div className="pg-hyper-grid">
               <div className="pg-hyper-box">
                 <div className="pg-hyper-head">
-                  <span>Activation Function</span>
-                  <span className="badge badge-subtle">{activation}</span>
+                  <span>
+                    <TermTip id="activation">Activation Function</TermTip>
+                  </span>
+                  <span style={{ display: 'inline-flex', gap: 6, fontSize: '0.76rem' }}>
+                    <TermTip id="tanh">Tanh</TermTip>
+                    <TermTip id="relu">ReLU</TermTip>
+                    <TermTip id="sigmoid">Sigmoid</TermTip>
+                  </span>
                 </div>
                 <div className="pg-act-pills" role="group" aria-label="Choose activation function">
                   {Object.keys(ACTIVATION_INFO).map((actKey) => (
@@ -1346,6 +1386,7 @@ export default function PlaygroundLab() {
                   ))}
                 </div>
                 <p className="pg-helper-note">
+                  <strong>{ACTIVATION_INFO[activation].label}:</strong>{' '}
                   {isDeepDive ? ACTIVATION_INFO[activation].deep : ACTIVATION_INFO[activation].kid}
                 </p>
               </div>
@@ -1353,7 +1394,9 @@ export default function PlaygroundLab() {
               <div className="pg-hyper-box">
                 <div className="pg-hyper-head">
                   <label htmlFor="pg-lr-slider">
-                    {isDeepDive ? 'Learning Rate (η)' : 'Learning Speed'}
+                    <TermTip id="learning-rate">
+                      {isDeepDive ? 'Learning Rate (η)' : 'Learning Rate'}
+                    </TermTip>
                   </label>
                   <span className="font-mono">{learningRate.toFixed(2)}</span>
                 </div>
