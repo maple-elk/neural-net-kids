@@ -26,7 +26,6 @@ import { useLearning } from '../context/LearningContext.jsx'
 import { getStageById, STAGES } from '../utils/pathwayLoader.js'
 import {
   SAMPLE_GRIDS,
-  SAMPLE_GRID_LIST,
   KERNELS,
   KERNEL_LIST,
   createBlankGrid,
@@ -57,20 +56,48 @@ function formatNumber(n) {
 function getFeatureCellStyle(value, maxAbs) {
   const scale = maxAbs > 0 ? Math.min(1, Math.abs(value) / maxAbs) : 0
   if (Math.abs(value) < 0.01) {
-    return { backgroundColor: '#1e293b', color: '#94a3b8' }
+    return { backgroundColor: '#1e293b', color: '#64748b' }
   }
-  if (value > 0) {
-    const alpha = 0.25 + scale * 0.75
-    return {
-      backgroundColor: `rgba(16, 185, 129, ${alpha.toFixed(2)})`,
-      color: scale > 0.45 ? '#ffffff' : '#d1fae5',
-    }
-  }
-  const alpha = 0.25 + scale * 0.75
+  const alpha = 0.22 + scale * 0.78
   return {
-    backgroundColor: `rgba(244, 63, 94, ${alpha.toFixed(2)})`,
-    color: scale > 0.45 ? '#ffffff' : '#ffe4e6',
+    backgroundColor: `rgba(16, 185, 129, ${alpha.toFixed(2)})`,
+    color: scale > 0.45 ? '#ffffff' : '#d1fae5',
   }
+}
+
+function getFilterVerdict(kernelId, value) {
+  const absVal = Math.abs(value)
+  const scoreStr = value > 0 ? `+${formatNumber(value)}` : formatNumber(value)
+  if (absVal < 0.15) {
+    return `No match here (score: ${scoreStr}) — the pixels inside this 3×3 magnifying glass don’t match the filter’s shape.`
+  }
+  if (kernelId === 'verticalEdge') {
+    const side =
+      value > 0
+        ? 'empty space on the left and ink on the right'
+        : 'ink on the left and empty space on the right'
+    return absVal >= 2
+      ? `Strong match! This 3×3 spot has ${side} — that’s a crisp vertical edge (score: ${scoreStr}).`
+      : `Partial match! There’s a slight vertical edge here (${side}, score: ${scoreStr}).`
+  }
+  if (kernelId === 'horizontalEdge') {
+    const side =
+      value > 0
+        ? 'empty space on top and ink below'
+        : 'ink on top and empty space below'
+    return absVal >= 2
+      ? `Strong match! This 3×3 spot has ${side} — that’s a flat horizontal edge (score: ${scoreStr}).`
+      : `Partial match! Slight horizontal edge detected (${side}, score: ${scoreStr}).`
+  }
+  if (kernelId === 'corner') {
+    return `Corner spotted! Your shape turns sharply inside this 3×3 magnifying glass (score: ${scoreStr}).`
+  }
+  if (kernelId === 'sharpen') {
+    return value > 0
+      ? `Crisp detail boosted! The center pixel stands out from its neighbors (score: ${scoreStr}).`
+      : `Edge contrast trimmed around this center pixel (score: ${scoreStr}).`
+  }
+  return `Softly blended! Average brightness of all 9 pixels here is ${Math.round(value * 100)}% (score: ${scoreStr}).`
 }
 
 /* ==========================================================================
@@ -565,14 +592,25 @@ function classifyMiniBrain(queryGrid, examplesA, examplesB) {
    Live Neural Network & Node Activations SVG (Draw Characters Tab)
    ========================================================================== */
 
-function LiveCharNetworkDiagram({ networkTrace, isDeepDive }) {
+function LiveCharNetworkDiagram({
+  networkTrace,
+  isDeepDive,
+  highlightedInputIndex = null,
+  onHoverInputIndex,
+}) {
   const [hoveredNode, setHoveredNode] = useState(null) // { layer: 'input'|'hidden'|'output', index }
   const [pinnedNode, setPinnedNode] = useState(null)
 
-  const activeFocus = hoveredNode || pinnedNode
+  const activeFocus =
+    hoveredNode ||
+    (highlightedInputIndex !== null ? { layer: 'input', index: highlightedInputIndex } : null) ||
+    pinnedNode
 
   const handleNodeClick = (layer, index) => {
     playClick()
+    if (layer === 'input' && onHoverInputIndex) {
+      onHoverInputIndex(pinnedNode?.layer === 'input' && pinnedNode.index === index ? null : index)
+    }
     setPinnedNode((prev) =>
       prev && prev.layer === layer && prev.index === index ? null : { layer, index },
     )
@@ -582,8 +620,8 @@ function LiveCharNetworkDiagram({ networkTrace, isDeepDive }) {
     return (
       <div className="vision-net-card" aria-label="Inside the Neural Network Live Node Activations">
         <div className="vision-net-head">
-          <h3>Inside the Neural Network — Live Node Activations</h3>
-          <span className="badge badge-subtle">16 Input → 12 Feature → 10 Output</span>
+          <h3>Step 4: Inside the Neural Network — Live Node Activations</h3>
+          <span className="badge badge-subtle">16 Pooled Zones → 12 Feature Detectors → 10 Outputs</span>
         </div>
         <div className="vision-net-empty">
           <Brain size={30} color="#34d399" />
@@ -591,7 +629,7 @@ function LiveCharNetworkDiagram({ networkTrace, isDeepDive }) {
             Draw a digit or letter above to watch signals flow through every neuron!
           </p>
           <p style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
-            You’ll see all 16 pixel zones, 12 feature-detector neurons, and 10 character outputs light up in real time.
+            You’ll see all 16 pooled zones, 12 feature-detector neurons, and 10 character outputs light up in real time.
           </p>
         </div>
       </div>
@@ -670,7 +708,7 @@ function LiveCharNetworkDiagram({ networkTrace, isDeepDive }) {
   return (
     <div className="vision-net-card" aria-label="Inside the Neural Network Live Node Activations">
       <div className="vision-net-head">
-        <h3>Inside the Neural Network — Live Node Activations</h3>
+        <h3>Step 4: Inside the Neural Network — Live Node Activations</h3>
         <div className="vision-net-legend">
           <span>
             <span className="vision-net-legend-dot" style={{ background: '#14b8a6' }} />
@@ -689,7 +727,7 @@ function LiveCharNetworkDiagram({ networkTrace, isDeepDive }) {
           className="vision-net-svg"
           viewBox="0 0 880 440"
           role="img"
-          aria-label="3-layer neural network showing live activations from 16 input pixel zones through 12 feature detectors to 10 output characters"
+          aria-label="3-layer neural network showing live activations from 16 pooled zones through 12 feature detectors to 10 output characters"
         >
           <defs>
             <filter id="visionNodeGlow" x="-40%" y="-40%" width="180%" height="180%">
@@ -702,13 +740,13 @@ function LiveCharNetworkDiagram({ networkTrace, isDeepDive }) {
           </defs>
 
           {/* Column Headers */}
-          <text x="92" y="24" textAnchor="middle" fill="#94a3b8" fontSize="11" fontWeight="700">
-            INPUT LAYER (16 Zones)
+          <text x="108" y="24" textAnchor="middle" fill="#94a3b8" fontSize="10.5" fontWeight="700">
+            INPUT LAYER (4×4 = 16 Pooled Zones)
           </text>
-          <text x="424" y="24" textAnchor="middle" fill="#94a3b8" fontSize="11" fontWeight="700">
+          <text x="424" y="24" textAnchor="middle" fill="#94a3b8" fontSize="10.5" fontWeight="700">
             HIDDEN LAYER (12 Feature Detectors)
           </text>
-          <text x="762" y="24" textAnchor="middle" fill="#94a3b8" fontSize="11" fontWeight="700">
+          <text x="762" y="24" textAnchor="middle" fill="#94a3b8" fontSize="10.5" fontWeight="700">
             OUTPUT LAYER (10 Predictions)
           </text>
 
@@ -782,8 +820,14 @@ function LiveCharNetworkDiagram({ networkTrace, isDeepDive }) {
                 <g
                   key={`in-${node.id}`}
                   className="vision-net-node-hit"
-                  onMouseEnter={() => setHoveredNode({ layer: 'input', index: idx })}
-                  onMouseLeave={() => setHoveredNode(null)}
+                  onMouseEnter={() => {
+                    setHoveredNode({ layer: 'input', index: idx })
+                    if (onHoverInputIndex) onHoverInputIndex(idx)
+                  }}
+                  onMouseLeave={() => {
+                    setHoveredNode(null)
+                    if (onHoverInputIndex) onHoverInputIndex(null)
+                  }}
                   onClick={() => handleNodeClick('input', idx)}
                 >
                   <title>{`Zone (${node.row + 1},${node.col + 1}): ${Math.round(act * 100)}%`}</title>
@@ -982,11 +1026,24 @@ export default function VisionLab() {
   const [pixelGrid, setPixelGrid] = useState(() => cloneGrid(SAMPLE_GRIDS.smiley.grid))
   const [selectedPresetId, setSelectedPresetId] = useState('smiley')
   const [selectedKernelId, setSelectedKernelId] = useState('verticalEdge')
+  const [showMoreFilters, setShowMoreFilters] = useState(false)
+  const [showMathBreakdown, setShowMathBreakdown] = useState(false)
   const [scanPos, setScanPos] = useState({ row: 1, col: 1 })
   const [isAutoScanning, setIsAutoScanning] = useState(false)
   const paintModeRef = useRef(null)
 
   const activeKernel = KERNELS[selectedKernelId] || KERNELS.verticalEdge
+  const primaryPresets = useMemo(
+    () => [SAMPLE_GRIDS.smiley, SAMPLE_GRIDS.cross, SAMPLE_GRIDS.verticalBar, SAMPLE_GRIDS.letterT],
+    [],
+  )
+  const visibleKernels = useMemo(
+    () =>
+      showMoreFilters
+        ? KERNEL_LIST
+        : [KERNELS.verticalEdge, KERNELS.horizontalEdge, KERNELS.corner],
+    [showMoreFilters],
+  )
 
   const fullConv = useMemo(
     () => applyFullConvolution(pixelGrid, activeKernel),
@@ -1112,6 +1169,7 @@ export default function VisionLab() {
   const [teachTarget, setTeachTarget] = useState('3')
   const [teachFeedback, setTeachFeedback] = useState('')
   const [customCounts, setCustomCounts] = useState({ digits: 0, letters: 0 })
+  const [highlightedZoneIdx, setHighlightedZoneIdx] = useState(null)
 
   const activeRecognizer = charCharset === 'digits' ? digitRecognizer : letterRecognizer
   const activeCharList = CHARSETS[charCharset] || CHARSETS.digits
@@ -1722,11 +1780,10 @@ export default function VisionLab() {
         <section className="lab-card" aria-label="Pixel Filters CNN Explorer">
           <div className="vision-section-header">
             <div>
-              <h2>Slide a 3×3 Filter Across Pixel Art</h2>
+              <h2>Spot Shapes with a 3×3 Magnifying Glass</h2>
               <p>
-                {isDeepDive
-                  ? 'Select a 3×3 kernel K and inspect (I * K)[r, c] across all 36 valid positions of the 8×8 input matrix.'
-                  : 'Draw pixels on the left, pick a pattern-finding lens, and watch it light up edges on the right!'}
+                A filter is a tiny 3×3 magnifying glass that scans for ONE shape. Wherever your
+                drawing matches the magnifying glass, the output glows bright!
               </p>
             </div>
             <div className="vision-scan-controls">
@@ -1757,9 +1814,80 @@ export default function VisionLab() {
             </div>
           </div>
 
+          {/* Visual Filter Selector Cards (3 clear defaults + More Filters toggle) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 8,
+              marginBottom: 10,
+            }}
+          >
+            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+              Choose what to search for:{' '}
+              <span style={{ color: '#059669' }}>■ Green = wants ink</span> ·{' '}
+              <span style={{ color: '#e11d48' }}>■ Pink = wants empty</span>
+            </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                playClick()
+                setShowMoreFilters((prev) => !prev)
+              }}
+            >
+              {showMoreFilters ? 'Show Fewer Filters' : 'More Filters (Sharpen, Blur)'}
+            </button>
+          </div>
+
+          <div className="vision-kernel-cards" role="group" aria-label="Convolution filter kernels">
+            {visibleKernels.map((kernel) => {
+              const selected = kernel.id === selectedKernelId
+              const shortTitle =
+                kernel.id === 'verticalEdge'
+                  ? 'Vertical Line |'
+                  : kernel.id === 'horizontalEdge'
+                    ? 'Horizontal Line —'
+                    : kernel.id === 'corner'
+                      ? 'Corner ⌜'
+                      : kernel.name
+              return (
+                <button
+                  key={kernel.id}
+                  type="button"
+                  aria-pressed={selected}
+                  className={`vision-kernel-card ${selected ? 'is-selected' : ''}`}
+                  onClick={() => {
+                    playClick()
+                    setSelectedKernelId(kernel.id)
+                  }}
+                >
+                  <div className="vision-kernel-card-row">
+                    <div className="vision-pattern-icon" aria-hidden="true">
+                      {kernel.weights.flat().map((w, idx) => (
+                        <span
+                          key={idx}
+                          className={`vision-pattern-dot ${w > 0 ? 'is-pos' : w < 0 ? 'is-neg' : ''}`}
+                        />
+                      ))}
+                    </div>
+                    <div>
+                      <div className="vision-kernel-card-head">{shortTitle}</div>
+                      <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                        {isDeepDive ? kernel.name : kernel.kidName}
+                      </div>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
           {/* Preset Pixel Art Buttons */}
           <div className="vision-preset-bar">
-            {SAMPLE_GRID_LIST.map((preset) => (
+            {primaryPresets.map((preset) => (
               <button
                 key={preset.id}
                 type="button"
@@ -1788,46 +1916,12 @@ export default function VisionLab() {
             </button>
           </div>
 
-          {/* Kernel Selector Cards */}
-          <div className="vision-kernel-cards" role="group" aria-label="Convolution filter kernels">
-            {KERNEL_LIST.map((kernel) => {
-              const selected = kernel.id === selectedKernelId
-              return (
-                <button
-                  key={kernel.id}
-                  type="button"
-                  aria-pressed={selected}
-                  className={`vision-kernel-card ${selected ? 'is-selected' : ''}`}
-                  onClick={() => {
-                    playClick()
-                    setSelectedKernelId(kernel.id)
-                  }}
-                >
-                  <div className="vision-kernel-card-head">
-                    <span>{kernel.emoji}</span>
-                    <span>{isDeepDive ? kernel.name : kernel.kidName}</span>
-                  </div>
-                  <div className="vision-mini-matrix" aria-hidden="true">
-                    {kernel.weights.flat().map((w, idx) => (
-                      <span
-                        key={idx}
-                        className={`vision-mini-cell ${w > 0 ? 'is-pos' : w < 0 ? 'is-neg' : ''}`}
-                      >
-                        {formatKernelWeight(w)}
-                      </span>
-                    ))}
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Main 3-Column CNN Interactive Workspace */}
+          {/* Clean 2-Column Interactive Workspace */}
           <div className="vision-cnn-workspace">
-            {/* Column 1: 8x8 Input Grid */}
+            {/* Column 1: 8x8 Drawing Grid (clean squares, no 0/1 clutter) */}
             <div className="vision-panel">
               <div className="vision-panel-title">
-                <span>1. Input Pixels (8×8)</span>
+                <span>1. Your Drawing (8×8)</span>
                 <span className="badge badge-subtle">Click or Drag</span>
               </div>
               <div className="vision-pixel-grid-wrap">
@@ -1843,13 +1937,11 @@ export default function VisionLab() {
                         <button
                           key={`${r}-${c}`}
                           type="button"
-                          aria-label={`Pixel row ${r + 1} column ${c + 1}, value ${val}`}
+                          aria-label={`Pixel row ${r + 1} column ${c + 1}, ${val ? 'ink' : 'empty'}`}
                           className={`vision-pixel-cell ${val > 0 ? 'is-on' : ''} ${inSpotlight ? 'in-spotlight' : ''}`}
                           onPointerDown={() => handlePixelPointerDown(r, c)}
                           onPointerEnter={() => handlePixelPointerEnter(r, c)}
-                        >
-                          {val}
-                        </button>
+                        />
                       )
                     }),
                   )}
@@ -1866,15 +1958,70 @@ export default function VisionLab() {
                 />
               </div>
               <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
-                Orange box = 3×3 window at row {scanPos.row + 1}, col {scanPos.col + 1}
+                Orange box = 3×3 magnifying glass at row {scanPos.row + 1}, col {scanPos.col + 1}
               </p>
             </div>
 
-            {/* Column 2: Live 3x3 Multiply & Sum Inspector */}
+            {/* Column 2: 6x6 Glowing Match Heatmap */}
             <div className="vision-panel">
               <div className="vision-panel-title">
-                <span>2. Filter Math</span>
-                <span className="badge badge-subtle">{activeKernel.name}</span>
+                <span>2. What the Filter Found (6×6)</span>
+                <span className="badge badge-subtle">Click any square</span>
+              </div>
+              <div className="vision-feature-grid" role="grid" aria-label="6 by 6 output feature map">
+                {fullConv.featureMap.map((rowArr, r) =>
+                  rowArr.map((val, c) => {
+                    const isActive = r === scanPos.row && c === scanPos.col
+                    return (
+                      <button
+                        key={`${r}-${c}`}
+                        type="button"
+                        aria-label={`Filter match row ${r + 1} col ${c + 1}, score ${formatNumber(val)}`}
+                        className={`vision-feature-cell ${isActive ? 'is-active' : ''}`}
+                        style={getFeatureCellStyle(val, fullConv.maxAbs)}
+                        onClick={() => {
+                          setIsAutoScanning(false)
+                          setScanPos({ row: r, col: c })
+                        }}
+                      />
+                    )
+                  }),
+                )}
+              </div>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                <strong style={{ color: '#059669' }}>Bright green</strong> = strong pattern match ·{' '}
+                <strong>Dark</strong> = no match
+              </p>
+            </div>
+          </div>
+
+          {/* Plain-English Magnifying-Glass Verdict Bar */}
+          <div className="vision-verdict-bar" aria-live="polite">
+            <div className="vision-verdict-text">
+              <span style={{ color: '#fbbf24', marginRight: 6 }}>🔍 Magnifying Glass:</span>
+              {getFilterVerdict(activeKernel.id, activeStep.value)}
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              aria-expanded={showMathBreakdown}
+              onClick={() => {
+                playClick()
+                setShowMathBreakdown((prev) => !prev)
+              }}
+            >
+              {showMathBreakdown ? 'Hide 3×3 Math Breakdown' : 'Show 3×3 Math Breakdown'}
+            </button>
+          </div>
+
+          {/* Collapsible 3x3 Math Breakdown */}
+          {showMathBreakdown && (
+            <div className="vision-math-collapse">
+              <div className="vision-panel-title">
+                <span>3×3 Multiply & Sum Breakdown ({activeKernel.name})</span>
+                <span className="badge badge-subtle">
+                  Row {scanPos.row + 1}, Col {scanPos.col + 1}
+                </span>
               </div>
 
               <div className="vision-math-strip">
@@ -1908,76 +2055,38 @@ export default function VisionLab() {
                     ))}
                   </div>
                 </div>
-              </div>
 
-              <div style={{ textAlign: 'center', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
-                Products summed together:
-              </div>
-
-              <div className="vision-math-strip">
-                <div className="vision-math-matrix">
-                  {activeStep.products.flat().map((prod, i) => (
-                    <div
-                      key={i}
-                      className={`vision-math-cell ${prod > 0 ? 'is-pos' : prod < 0 ? 'is-neg' : ''}`}
-                    >
-                      {formatNumber(prod)}
-                    </div>
-                  ))}
-                </div>
                 <span className="vision-math-op">=</span>
+
+                <div>
+                  <div style={{ fontSize: '0.72rem', fontWeight: 700, textAlign: 'center', marginBottom: 4 }}>
+                    Products
+                  </div>
+                  <div className="vision-math-matrix">
+                    {activeStep.products.flat().map((prod, i) => (
+                      <div
+                        key={i}
+                        className={`vision-math-cell ${prod > 0 ? 'is-pos' : prod < 0 ? 'is-neg' : ''}`}
+                      >
+                        {formatNumber(prod)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <span className="vision-math-op">→</span>
+
                 <div className="vision-math-result">
-                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Output Pixel</div>
+                  <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Sum</div>
                   <div className="vision-math-result-val">{formatNumber(activeStep.value)}</div>
                 </div>
               </div>
 
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+              <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
                 {isDeepDive ? activeKernel.deepDive : activeKernel.description}
               </p>
             </div>
-
-            {/* Column 3: 6x6 Output Feature Map */}
-            <div className="vision-panel">
-              <div className="vision-panel-title">
-                <span>3. Feature Map (6×6)</span>
-                <span className="badge badge-subtle">Click a cell</span>
-              </div>
-              <div className="vision-feature-grid" role="grid" aria-label="6 by 6 output feature map">
-                {fullConv.featureMap.map((rowArr, r) =>
-                  rowArr.map((val, c) => {
-                    const isActive = r === scanPos.row && c === scanPos.col
-                    return (
-                      <button
-                        key={`${r}-${c}`}
-                        type="button"
-                        aria-label={`Feature map row ${r + 1} col ${c + 1}, score ${formatNumber(val)}`}
-                        className={`vision-feature-cell ${isActive ? 'is-active' : ''}`}
-                        style={getFeatureCellStyle(val, fullConv.maxAbs)}
-                        onClick={() => {
-                          setIsAutoScanning(false)
-                          setScanPos({ row: r, col: c })
-                        }}
-                      >
-                        {formatNumber(val)}
-                      </button>
-                    )
-                  }),
-                )}
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  fontSize: '0.76rem',
-                  color: 'var(--text-secondary)',
-                }}
-              >
-                <span style={{ color: '#059669', fontWeight: 700 }}>■ Green = Positive match</span>
-                <span style={{ color: '#e11d48', fontWeight: 700 }}>■ Pink = Opposite edge</span>
-              </div>
-            </div>
-          </div>
+          )}
         </section>
       )}
 
@@ -2079,39 +2188,120 @@ export default function VisionLab() {
               </div>
             </div>
 
-            {/* Column 2: 16x16 Centered Input Grid */}
+            {/* Column 2: Step 2 (16x16 Crop & Center) -> Step 3 (4x4 Pooled Zones) */}
             <div className="vision-panel">
               <div className="vision-panel-title">
-                <span>2. What the AI Sees</span>
-                <span className="badge badge-subtle">16×16</span>
+                <span>2 & 3. Center (16×16) → Pool (4×4)</span>
+                <span className="badge badge-subtle">16 Inputs</span>
               </div>
 
-              <div className="vision-centered-grid" aria-label="16 by 16 centered neural network input">
-                {(charResult?.normalizedGrid ||
-                  Array.from({ length: 16 }, () => new Array(16).fill(0))
-                ).map((rowArr, r) =>
-                  rowArr.map((val, c) => {
-                    const shade = Math.round(val * 255)
-                    const bg =
-                      val > 0.04
-                        ? `rgb(${Math.round(16 + val * 36)}, ${Math.round(40 + val * 190)}, ${Math.round(60 + val * 105)})`
-                        : '#0f172a'
-                    return (
-                      <div
-                        key={`c16-${r}-${c}`}
-                        className="vision-centered-cell"
-                        style={{ backgroundColor: bg }}
-                        title={`(${r + 1},${c + 1}): ${shade}/255`}
-                      />
-                    )
-                  }),
-                )}
+              <div className="vision-pool-flow">
+                {/* Step 2: 16x16 Grid with 4x4 dashed zone divider overlay */}
+                <div className="vision-pool-step">
+                  <span className="vision-pool-step-label">Step 2: 16×16 (256 px)</span>
+                  <div className="vision-centered-grid-wrap">
+                    <div
+                      className="vision-centered-grid"
+                      aria-label="16 by 16 centered neural network input with 4 by 4 zone dividers"
+                    >
+                      {(charResult?.normalizedGrid ||
+                        Array.from({ length: 16 }, () => new Array(16).fill(0))
+                      ).map((rowArr, r) =>
+                        rowArr.map((val, c) => {
+                          const bg =
+                            val > 0.04
+                              ? `rgb(${Math.round(16 + val * 36)}, ${Math.round(40 + val * 190)}, ${Math.round(60 + val * 105)})`
+                              : '#0f172a'
+                          return (
+                            <div
+                              key={`c16-${r}-${c}`}
+                              className="vision-centered-cell"
+                              style={{ backgroundColor: bg }}
+                            />
+                          )
+                        }),
+                      )}
+                    </div>
+                    <div className="vision-zone-overlay" aria-label="16 zone overlay on 16 by 16 grid">
+                      {Array.from({ length: 16 }, (_, zIdx) => {
+                        const zr = Math.floor(zIdx / 4)
+                        const zc = zIdx % 4
+                        return (
+                          <button
+                            key={`zb-${zIdx}`}
+                            type="button"
+                            aria-label={`Zone row ${zr + 1} col ${zc + 1} on 16 by 16 grid`}
+                            className={`vision-zone-box ${highlightedZoneIdx === zIdx ? 'is-highlighted' : ''}`}
+                            onMouseEnter={() => setHighlightedZoneIdx(zIdx)}
+                            onMouseLeave={() => setHighlightedZoneIdx(null)}
+                            onClick={() => {
+                              playClick()
+                              setHighlightedZoneIdx((prev) => (prev === zIdx ? null : zIdx))
+                            }}
+                          />
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Explicit Pooling Arrow */}
+                <div className="vision-pool-arrow" aria-hidden="true">
+                  <ArrowRight size={18} />
+                  <span>avg each</span>
+                  <span>4×4 block</span>
+                </div>
+
+                {/* Step 3: 4x4 Pooled Zones (16 Input Nodes) */}
+                <div className="vision-pool-step">
+                  <span className="vision-pool-step-label">Step 3: 4×4 (16 Inputs)</span>
+                  <div className="vision-pooled-grid" aria-label="4 by 4 pooled zone grid feeding 16 input nodes">
+                    {(
+                      charResult?.networkTrace?.inputNodes ||
+                      Array.from({ length: 16 }, (_, idx) => ({
+                        id: idx,
+                        row: Math.floor(idx / 4),
+                        col: idx % 4,
+                        activation: 0,
+                      }))
+                    ).map((node) => {
+                      const pct = Math.round(node.activation * 100)
+                      const bg =
+                        node.activation > 0.04
+                          ? `rgba(16, 185, 129, ${(0.22 + node.activation * 0.78).toFixed(2)})`
+                          : '#1e293b'
+                      return (
+                        <button
+                          key={`pool-${node.id}`}
+                          type="button"
+                          aria-label={`Pooled zone ${node.row + 1},${node.col + 1}: ${pct}% brightness`}
+                          className={`vision-pooled-cell ${highlightedZoneIdx === node.id ? 'is-highlighted' : ''}`}
+                          style={{
+                            backgroundColor: bg,
+                            color: node.activation > 0.35 ? '#ffffff' : '#94a3b8',
+                          }}
+                          onMouseEnter={() => setHighlightedZoneIdx(node.id)}
+                          onMouseLeave={() => setHighlightedZoneIdx(null)}
+                          onClick={() => {
+                            playClick()
+                            setHighlightedZoneIdx((prev) => (prev === node.id ? null : node.id))
+                          }}
+                        >
+                          <span style={{ opacity: 0.75, fontSize: '0.52rem' }}>
+                            {node.row + 1},{node.col + 1}
+                          </span>
+                          <span>{pct}%</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
               </div>
 
-              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
                 {isDeepDive
-                  ? 'Bounding-box cropped, aspect-preserved & center-of-mass aligned into 256 normalized intensities.'
-                  : 'Even if you draw off-center or tiny, the AI crops and centers your drawing into 256 glowing squares!'}
+                  ? '16×16 normalized ink → 4×4 average pooling → 16 input neurons below. Hover any zone to trace its exact block & synapses!'
+                  : 'We average each dashed 4×4 square into 1 brightness number. Hover any square to highlight its matching neuron below!'}
               </p>
             </div>
 
@@ -2239,6 +2429,8 @@ export default function VisionLab() {
           <LiveCharNetworkDiagram
             networkTrace={charResult?.networkTrace || null}
             isDeepDive={isDeepDive}
+            highlightedInputIndex={highlightedZoneIdx}
+            onHoverInputIndex={setHighlightedZoneIdx}
           />
 
           <div className={isDeepDive ? 'callout-deep' : 'callout-kid'} style={{ marginTop: 18 }}>
