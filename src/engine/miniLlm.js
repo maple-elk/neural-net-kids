@@ -116,84 +116,111 @@ export function tokenize(text) {
 }
 
 /**
- * Curated 2D word embeddings arranged by semantic cluster & consistent analogy vectors:
- *   king - man + woman   -> queen
- *   prince - man + woman -> princess
- *   puppy - dog + cat    -> kitten
+ * Curated 3D (x, y, z) word embeddings arranged by semantic cluster & consistent analogy vectors
+ * in BOTH 2D (x, y) and 3D (x, y, z):
+ *   king - man + woman     -> queen
+ *   prince - man + woman   -> princess
+ *   puppy - dog + cat      -> kitten
  *   paris - france + japan -> tokyo
  *   paris - france + italy -> rome
  */
 export const EMBEDDING_WORDS = [
   // Royalty & People
-  { word: 'king', emoji: '👑', category: 'royalty', x: 0.58, y: 0.78 },
-  { word: 'queen', emoji: '👸', category: 'royalty', x: 0.86, y: 0.78 },
-  { word: 'prince', emoji: '🤴', category: 'royalty', x: 0.62, y: 0.62 },
-  { word: 'princess', emoji: '🎀', category: 'royalty', x: 0.90, y: 0.62 },
-  { word: 'man', emoji: '👨', category: 'royalty', x: 0.58, y: 0.44 },
-  { word: 'woman', emoji: '👩', category: 'royalty', x: 0.86, y: 0.44 },
+  { word: 'king', emoji: '👑', category: 'royalty', x: 0.58, y: 0.78, z: 0.65 },
+  { word: 'queen', emoji: '👸', category: 'royalty', x: 0.86, y: 0.78, z: 0.72 },
+  { word: 'prince', emoji: '🤴', category: 'royalty', x: 0.62, y: 0.62, z: 0.55 },
+  { word: 'princess', emoji: '🎀', category: 'royalty', x: 0.90, y: 0.62, z: 0.62 },
+  { word: 'man', emoji: '👨', category: 'royalty', x: 0.58, y: 0.44, z: 0.35 },
+  { word: 'woman', emoji: '👩', category: 'royalty', x: 0.86, y: 0.44, z: 0.42 },
 
   // Animals
-  { word: 'dog', emoji: '🐶', category: 'animals', x: -0.78, y: 0.54 },
-  { word: 'puppy', emoji: '🐾', category: 'animals', x: -0.78, y: 0.82 },
-  { word: 'cat', emoji: '🐱', category: 'animals', x: -0.46, y: 0.54 },
-  { word: 'kitten', emoji: '🧶', category: 'animals', x: -0.46, y: 0.82 },
-  { word: 'lion', emoji: '🦁', category: 'animals', x: -0.86, y: 0.28 },
-  { word: 'wolf', emoji: '🐺', category: 'animals', x: -0.60, y: 0.28 },
+  { word: 'dog', emoji: '🐶', category: 'animals', x: -0.78, y: 0.54, z: 0.30 },
+  { word: 'puppy', emoji: '🐾', category: 'animals', x: -0.78, y: 0.82, z: 0.58 },
+  { word: 'cat', emoji: '🐱', category: 'animals', x: -0.46, y: 0.54, z: 0.38 },
+  { word: 'kitten', emoji: '🧶', category: 'animals', x: -0.46, y: 0.82, z: 0.66 },
+  { word: 'lion', emoji: '🦁', category: 'animals', x: -0.86, y: 0.28, z: 0.18 },
+  { word: 'wolf', emoji: '🐺', category: 'animals', x: -0.60, y: 0.28, z: 0.22 },
 
   // Places (Countries & Capitals)
-  { word: 'france', emoji: '🇫🇷', category: 'places', x: -0.78, y: -0.66 },
-  { word: 'paris', emoji: '🗼', category: 'places', x: -0.78, y: -0.34 },
-  { word: 'japan', emoji: '🇯🇵', category: 'places', x: -0.36, y: -0.66 },
-  { word: 'tokyo', emoji: '🏯', category: 'places', x: -0.36, y: -0.34 },
-  { word: 'italy', emoji: '🇮🇹', category: 'places', x: -0.58, y: -0.82 },
-  { word: 'rome', emoji: '🏛️', category: 'places', x: -0.58, y: -0.50 },
+  { word: 'france', emoji: '🇫🇷', category: 'places', x: -0.78, y: -0.66, z: -0.68 },
+  { word: 'paris', emoji: '🗼', category: 'places', x: -0.78, y: -0.34, z: -0.36 },
+  { word: 'japan', emoji: '🇯🇵', category: 'places', x: -0.36, y: -0.66, z: -0.58 },
+  { word: 'tokyo', emoji: '🏯', category: 'places', x: -0.36, y: -0.34, z: -0.26 },
+  { word: 'italy', emoji: '🇮🇹', category: 'places', x: -0.58, y: -0.82, z: -0.74 },
+  { word: 'rome', emoji: '🏛️', category: 'places', x: -0.58, y: -0.50, z: -0.42 },
 
   // Food
-  { word: 'apple', emoji: '🍎', category: 'food', x: 0.08, y: -0.56 },
-  { word: 'banana', emoji: '🍌', category: 'food', x: 0.20, y: -0.66 },
-  { word: 'pizza', emoji: '🍕', category: 'food', x: 0.36, y: -0.46 },
-  { word: 'burger', emoji: '🍔', category: 'food', x: 0.46, y: -0.58 },
-  { word: 'cake', emoji: '🎂', category: 'food', x: 0.26, y: -0.82 },
+  { word: 'apple', emoji: '🍎', category: 'food', x: 0.08, y: -0.56, z: 0.12 },
+  { word: 'banana', emoji: '🍌', category: 'food', x: 0.20, y: -0.66, z: 0.04 },
+  { word: 'pizza', emoji: '🍕', category: 'food', x: 0.36, y: -0.46, z: -0.10 },
+  { word: 'burger', emoji: '🍔', category: 'food', x: 0.46, y: -0.58, z: -0.18 },
+  { word: 'cake', emoji: '🎂', category: 'food', x: 0.26, y: -0.82, z: 0.16 },
 
   // Space
-  { word: 'sun', emoji: '☀️', category: 'space', x: -0.08, y: 0.84 },
-  { word: 'moon', emoji: '🌙', category: 'space', x: 0.12, y: 0.78 },
-  { word: 'star', emoji: '⭐', category: 'space', x: -0.18, y: 0.66 },
-  { word: 'planet', emoji: '🪐', category: 'space', x: -0.02, y: 0.56 },
-  { word: 'rocket', emoji: '🚀', category: 'space', x: 0.18, y: 0.50 },
+  { word: 'sun', emoji: '☀️', category: 'space', x: -0.08, y: 0.84, z: -0.52 },
+  { word: 'moon', emoji: '🌙', category: 'space', x: 0.12, y: 0.78, z: -0.64 },
+  { word: 'star', emoji: '⭐', category: 'space', x: -0.18, y: 0.66, z: -0.76 },
+  { word: 'planet', emoji: '🪐', category: 'space', x: -0.02, y: 0.56, z: -0.46 },
+  { word: 'rocket', emoji: '🚀', category: 'space', x: 0.18, y: 0.50, z: -0.34 },
 
   // Tech
-  { word: 'robot', emoji: '🤖', category: 'tech', x: 0.68, y: -0.34 },
-  { word: 'computer', emoji: '💻', category: 'tech', x: 0.82, y: -0.48 },
-  { word: 'code', emoji: '🧩', category: 'tech', x: 0.72, y: -0.68 },
-  { word: 'chip', emoji: '🔌', category: 'tech', x: 0.88, y: -0.64 },
-  { word: 'ai', emoji: '🧠', category: 'tech', x: 0.60, y: -0.52 },
+  { word: 'robot', emoji: '🤖', category: 'tech', x: 0.68, y: -0.34, z: -0.12 },
+  { word: 'computer', emoji: '💻', category: 'tech', x: 0.82, y: -0.48, z: -0.24 },
+  { word: 'code', emoji: '🧩', category: 'tech', x: 0.72, y: -0.68, z: -0.36 },
+  { word: 'chip', emoji: '🔌', category: 'tech', x: 0.88, y: -0.64, z: -0.44 },
+  { word: 'ai', emoji: '🧠', category: 'tech', x: 0.60, y: -0.52, z: -0.06 },
 ];
 
 export const WORD_MATH_PRESETS = [
-  { label: 'king − man + woman', a: 'king', b: 'man', c: 'woman', expected: 'queen' },
-  { label: 'puppy − dog + cat', a: 'puppy', b: 'dog', c: 'cat', expected: 'kitten' },
-  { label: 'paris − france + japan', a: 'paris', b: 'france', c: 'japan', expected: 'tokyo' },
-  { label: 'prince − man + woman', a: 'prince', b: 'man', c: 'woman', expected: 'princess' },
+  { label: 'king − man + woman', offsetLabel: 'Royalty shift', a: 'king', b: 'man', c: 'woman', expected: 'queen' },
+  { label: 'puppy − dog + cat', offsetLabel: 'Baby animal shift', a: 'puppy', b: 'dog', c: 'cat', expected: 'kitten' },
+  { label: 'paris − france + japan', offsetLabel: 'Capital city shift', a: 'paris', b: 'france', c: 'japan', expected: 'tokyo' },
+  { label: 'prince − man + woman', offsetLabel: 'Young royalty shift', a: 'prince', b: 'man', c: 'woman', expected: 'princess' },
 ];
 
 /**
+ * Compute cosine similarity between two 2D or 3D vectors.
+ * @param {{ x: number, y: number, z?: number }} u
+ * @param {{ x: number, y: number, z?: number }} v
+ * @param {boolean} use3D
+ * @returns {number}
+ */
+function cosineSimilarity(u, v, use3D) {
+  const dot = use3D ? u.x * v.x + u.y * v.y + (u.z || 0) * (v.z || 0) : u.x * v.x + u.y * v.y;
+  const magU = use3D ? Math.hypot(u.x, u.y, u.z || 0) : Math.hypot(u.x, u.y);
+  const magV = use3D ? Math.hypot(v.x, v.y, v.z || 0) : Math.hypot(v.x, v.y);
+  if (magU < 1e-8 || magV < 1e-8) return 0;
+  return dot / (magU * magV);
+}
+
+/**
  * Perform vector analogy arithmetic: vec(a) - vec(b) + vec(c)
- * and return the closest words with similarity scores in (0, 1].
+ * and return the closest words with Euclidean distance, similarity (0..1], and cosineSim.
  *
  * @param {string} a
  * @param {string} b
  * @param {string} c
- * @param {number} [topN=5]
+ * @param {number|{ topN?: number, use3D?: boolean }} [optionsOrTopN=5]
  * @returns {{
  *   formula: string,
- *   target: { x: number, y: number },
+ *   use3D: boolean,
+ *   vecA: { x: number, y: number, z: number },
+ *   vecB: { x: number, y: number, z: number },
+ *   vecC: { x: number, y: number, z: number },
+ *   diffVec: { x: number, y: number, z: number },
+ *   resultVec: { x: number, y: number, z: number },
+ *   target: { x: number, y: number, z: number },
  *   inputs: { a: object, b: object, c: object },
  *   bestMatch: object,
- *   results: Array<{ word: string, emoji: string, category: string, x: number, y: number, distance: number, similarity: number }>
+ *   matches: Array<{ word: string, emoji: string, category: string, x: number, y: number, z: number, distance: number, similarity: number, cosineSim: number }>,
+ *   results: Array<{ word: string, emoji: string, category: string, x: number, y: number, z: number, distance: number, similarity: number, cosineSim: number }>
  * }}
  */
-export function wordMath(a, b, c, topN = 5) {
+export function wordMath(a, b, c, optionsOrTopN = 5) {
+  const isObj = typeof optionsOrTopN === 'object' && optionsOrTopN !== null;
+  const topN = isObj ? (optionsOrTopN.topN ?? 5) : (optionsOrTopN ?? 5);
+  const use3D = isObj ? Boolean(optionsOrTopN.use3D) : false;
+
   const findWord = (w) =>
     EMBEDDING_WORDS.find((entry) => entry.word.toLowerCase() === String(w).toLowerCase());
 
@@ -210,33 +237,87 @@ export function wordMath(a, b, c, topN = 5) {
     throw new Error(`Unknown embedding word(s): ${missing.join(', ')}`);
   }
 
-  const target = {
-    x: wa.x - wb.x + wc.x,
-    y: wa.y - wb.y + wc.y,
+  const vecA = { x: wa.x, y: wa.y, z: wa.z };
+  const vecB = { x: wb.x, y: wb.y, z: wb.z };
+  const vecC = { x: wc.x, y: wc.y, z: wc.z };
+
+  const diffVec = {
+    x: Number((wa.x - wb.x).toFixed(4)),
+    y: Number((wa.y - wb.y).toFixed(4)),
+    z: Number((wa.z - wb.z).toFixed(4)),
+  };
+
+  const resultVec = {
+    x: Number((wa.x - wb.x + wc.x).toFixed(4)),
+    y: Number((wa.y - wb.y + wc.y).toFixed(4)),
+    z: Number((wa.z - wb.z + wc.z).toFixed(4)),
   };
 
   const excluded = new Set([wa.word, wb.word, wc.word]);
 
   const ranked = EMBEDDING_WORDS.filter((entry) => !excluded.has(entry.word))
     .map((entry) => {
-      const distance = Math.hypot(entry.x - target.x, entry.y - target.y);
+      const distance = use3D
+        ? Math.hypot(entry.x - resultVec.x, entry.y - resultVec.y, entry.z - resultVec.z)
+        : Math.hypot(entry.x - resultVec.x, entry.y - resultVec.y);
       const similarity = Math.exp(-distance * 2.5);
+      const cosineSim = cosineSimilarity(entry, resultVec, use3D);
       return {
         ...entry,
         distance,
         similarity,
+        cosineSim,
       };
     })
     .sort((u, v) => u.distance - v.distance);
 
-  const results = ranked.slice(0, Math.max(1, topN));
+  const matches = ranked.slice(0, Math.max(1, topN));
   return {
     formula: `${wa.word} - ${wb.word} + ${wc.word}`,
-    target,
+    use3D,
+    vecA,
+    vecB,
+    vecC,
+    diffVec,
+    resultVec,
+    target: resultVec,
     inputs: { a: wa, b: wb, c: wc },
-    bestMatch: results[0],
-    results,
+    bestMatch: matches[0],
+    matches,
+    results: matches,
   };
+}
+
+/**
+ * Find the closest semantic neighbors to a given word in 2D or 3D embedding space.
+ *
+ * @param {string} wordKey
+ * @param {number} [count=3]
+ * @param {boolean} [use3D=false]
+ * @returns {Array<{ word: string, emoji: string, category: string, x: number, y: number, z: number, distance: number, similarity: number, cosineSim: number }>}
+ */
+export function findNearestWords(wordKey, count = 3, use3D = false) {
+  const origin = EMBEDDING_WORDS.find(
+    (entry) => entry.word.toLowerCase() === String(wordKey).toLowerCase(),
+  );
+  if (!origin) return [];
+
+  return EMBEDDING_WORDS.filter((entry) => entry.word !== origin.word)
+    .map((entry) => {
+      const distance = use3D
+        ? Math.hypot(entry.x - origin.x, entry.y - origin.y, entry.z - origin.z)
+        : Math.hypot(entry.x - origin.x, entry.y - origin.y);
+      const similarity = Math.exp(-distance * 2.5);
+      const cosineSim = cosineSimilarity(entry, origin, use3D);
+      return {
+        ...entry,
+        distance,
+        similarity,
+        cosineSim,
+      };
+    })
+    .sort((u, v) => u.distance - v.distance)
+    .slice(0, Math.max(0, count));
 }
 
 /**

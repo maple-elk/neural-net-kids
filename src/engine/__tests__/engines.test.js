@@ -37,6 +37,7 @@ import {
   EMBEDDING_WORDS,
   WORD_MATH_PRESETS,
   wordMath,
+  findNearestWords,
   ATTENTION_EXAMPLES,
   STARTER_CORPORA,
   STARTER_CORPORA_LIST,
@@ -283,19 +284,67 @@ describe('Mini-LLM Language Engine (src/engine/miniLlm.js)', () => {
     }
   });
 
-  it('solves classic vector analogies with wordMath()', () => {
+  it('solves classic vector analogies with wordMath() in both 2D and 3D and exposes concrete vectors', () => {
     expect(EMBEDDING_WORDS.length).toBeGreaterThanOrEqual(24);
     expect(WORD_MATH_PRESETS.length).toBeGreaterThanOrEqual(3);
 
-    const royalty = wordMath('king', 'man', 'woman');
-    expect(royalty.bestMatch.word).toBe('queen');
-    expect(royalty.bestMatch.similarity).toBeGreaterThan(0.95);
+    // Every word has valid 3D coordinates (x, y, z) in [-1, 1]
+    for (const entry of EMBEDDING_WORDS) {
+      expect(Number.isFinite(entry.z)).toBe(true);
+      expect(entry.z).toBeGreaterThanOrEqual(-1);
+      expect(entry.z).toBeLessThanOrEqual(1);
+    }
 
-    const animals = wordMath('puppy', 'dog', 'cat');
-    expect(animals.bestMatch.word).toBe('kitten');
+    // Every preset has an offsetLabel and resolves to expected top-1 match in BOTH 2D and 3D
+    for (const preset of WORD_MATH_PRESETS) {
+      expect(typeof preset.offsetLabel).toBe('string');
+      expect(preset.offsetLabel.length).toBeGreaterThan(0);
 
-    const capitals = wordMath('paris', 'france', 'japan');
-    expect(capitals.bestMatch.word).toBe('tokyo');
+      for (const use3D of [false, true]) {
+        const res = wordMath(preset.a, preset.b, preset.c, { topN: 5, use3D });
+        expect(res.use3D).toBe(use3D);
+        expect(res.bestMatch.word).toBe(preset.expected);
+        expect(res.bestMatch.similarity).toBeGreaterThan(0.95);
+        expect(res.matches).toEqual(res.results);
+
+        // Verify exact vecA - vecB = diffVec and diffVec + vecC = resultVec
+        expect(res.diffVec.x).toBeCloseTo(res.vecA.x - res.vecB.x, 4);
+        expect(res.diffVec.y).toBeCloseTo(res.vecA.y - res.vecB.y, 4);
+        expect(res.diffVec.z).toBeCloseTo(res.vecA.z - res.vecB.z, 4);
+
+        expect(res.resultVec.x).toBeCloseTo(res.vecA.x - res.vecB.x + res.vecC.x, 4);
+        expect(res.resultVec.y).toBeCloseTo(res.vecA.y - res.vecB.y + res.vecC.y, 4);
+        expect(res.resultVec.z).toBeCloseTo(res.vecA.z - res.vecB.z + res.vecC.z, 4);
+
+        for (const match of res.matches) {
+          expect(match.distance).toBeGreaterThanOrEqual(0);
+          expect(match.similarity).toBeGreaterThan(0);
+          expect(match.similarity).toBeLessThanOrEqual(1);
+          expect(match.cosineSim).toBeGreaterThanOrEqual(-1.0001);
+          expect(match.cosineSim).toBeLessThanOrEqual(1.0001);
+        }
+      }
+    }
+
+    // Backwards-compatible numeric topN call still works
+    const legacy = wordMath('king', 'man', 'woman', 3);
+    expect(legacy.results).toHaveLength(3);
+    expect(legacy.bestMatch.word).toBe('queen');
+  });
+
+  it('finds sorted nearest semantic neighbors in 2D and 3D with findNearestWords()', () => {
+    for (const use3D of [false, true]) {
+      const neighbors = findNearestWords('king', 3, use3D);
+      expect(neighbors).toHaveLength(3);
+      expect(neighbors.some((n) => n.word === 'king')).toBe(false);
+      // Royalty cluster neighbors should appear closest to king
+      expect(['prince', 'queen', 'man', 'princess']).toContain(neighbors[0].word);
+      for (let i = 1; i < neighbors.length; i++) {
+        expect(neighbors[i].distance).toBeGreaterThanOrEqual(neighbors[i - 1].distance);
+      }
+    }
+
+    expect(findNearestWords('not-a-word', 3, true)).toEqual([]);
   });
 
   it('provides normalized attention weight matrices for Winograd pronoun pairs', () => {
