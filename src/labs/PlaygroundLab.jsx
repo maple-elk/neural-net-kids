@@ -1,552 +1,172 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import confetti from 'canvas-confetti'
 import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  Cpu,
-  Layers,
+  FastForward,
   Minus,
   Pause,
   Play,
   Plus,
   RotateCcw,
-  Sparkles,
   StepForward,
-  Trophy,
 } from 'lucide-react'
+import {
+  createMLP,
+  evaluateGrid,
+  generateDataset,
+  traceBackpropStep,
+} from '../engine/mlp.js'
+import { playClick, playStep, playSuccess } from '../utils/sound.js'
+import BookChapter, { BonusDrawer, BookSection, MathDrawer } from '../components/BookChapter.jsx'
 import TermTip from '../components/TermTip.jsx'
-import { useLearning } from '../context/LearningContext.jsx'
-import { getGlossaryEntry } from '../data/glossary.js'
-import { createMLP, evaluateGrid, generateDataset } from '../engine/mlp.js'
-import { getStageById, STAGES } from '../utils/pathwayLoader.js'
-import { playClick, playSuccess } from '../utils/sound.js'
 import './PlaygroundLab.css'
+import './BackpropLab.css'
 
-const DATASET_OPTIONS = [
-  {
-    id: 'linear',
-    label: 'Linear',
-    kidDesc:
-      'Linear: Two teams split cleanly by a single straight line — easy even with 0 hidden layers!',
-    deepDesc: 'Linearly separable half-spaces (x + y ≥ 0) — solvable by a single affine hyperplane.',
-  },
-  {
-    id: 'circle',
-    label: 'Circle',
-    kidDesc:
-      'Circle: An inner teal island surrounded by a coral ring — you need a hidden layer to bend a fence around it!',
-    deepDesc: 'Concentric radial boundary (r < 0.5 vs r > 0.65) requiring a closed non-linear decision region.',
-  },
-  {
-    id: 'xor',
-    label: 'XOR',
-    kidDesc:
-      'XOR ("Exclusive OR"): Opposite corners share a team like a checkerboard — impossible for 1 straight line, so you need a hidden layer!',
-    deepDesc: 'Classic non-linearly separable quadrant parity (x·y > 0) requiring ≥2 hidden units to fold space.',
-  },
-  {
-    id: 'spiral',
-    label: 'Spiral',
-    kidDesc:
-      'Spiral: Two galaxy arms twisted around each other — the hardest puzzle, needing 2–3 hidden layers to weave between them!',
-    deepDesc: 'Intertwined 2-arm Archimedean spiral manifold requiring deeper compositional representations.',
-  },
-]
-
-const ACTIVATION_INFO = {
-  tanh: {
-    label: 'Tanh',
-    kid: 'Smoothly squishes any number into a range from −1 to +1, centered at zero — great all-rounder for curved shapes!',
-    deep: 'tanh(z) ∈ (−1, 1), derivative 1 − tanh²(z). Zero-centered outputs speed convergence.',
-  },
-  relu: {
-    label: 'ReLU',
-    kid: 'Turns negative numbers into 0 and keeps positive numbers as-is — like a one-way gate that only passes positive signals!',
-    deep: 'ReLU(z) = max(0, z), derivative 1 if z > 0 else 0. Creates piecewise-linear folds.',
-  },
-  sigmoid: {
-    label: 'Sigmoid',
-    kid: 'Smoothly squishes any number into a 0% to 100% probability (between 0 and 1)!',
-    deep: 'σ(z) = 1 / (1 + e⁻ᶻ), derivative σ(z)(1 − σ(z)). Can saturate in deeper networks.',
-  },
+const CANVAS_SIZE = 280
+const GRID_RES = 34
+const INITIAL_BP_NET = {
+  x: 1.0,
+  target: 0.9,
+  w1: -0.6,
+  b1: 0.2,
+  w2: 0.4,
+  b2: -0.3,
 }
 
-const MISSIONS = [
-  {
-    id: 'linear',
-    title: 'Mission 1: Straight-Line Sorter',
-    dataset: 'linear',
-    kidDesc: 'Solve the Linear dataset using 0 or 1 hidden layer. Notice how even a single straight boundary separates it!',
-    deepDesc: 'Reach MSE < 0.05 on Linear with 0 or 1 hidden layer (a single affine hyperplane suffices).',
-    goalLabel: 'Linear · ≤1 hidden layer · Loss < 0.05',
-    preset: { dataset: 'linear', hiddenSizes: [], activation: 'tanh', lr: 0.4 },
-    check: ({ datasetType, hiddenSizes, loss }) =>
-      datasetType === 'linear' && hiddenSizes.length <= 1 && loss < 0.05,
-  },
-  {
-    id: 'xor',
-    title: 'Mission 2: Break the XOR Barrier',
-    dataset: 'xor',
-    kidDesc: 'First try XOR with 1 hidden neuron — why does it get stuck? Now boost to 4 neurons and watch it bend!',
-    deepDesc: 'Observe linear underfitting on XOR with 1 hidden unit, then expand to ≥4 units to achieve MSE < 0.05.',
-    goalLabel: 'XOR · Loss < 0.05',
-    preset: { dataset: 'xor', hiddenSizes: [1], activation: 'tanh', lr: 0.4 },
-    boostPreset: { dataset: 'xor', hiddenSizes: [4], activation: 'tanh', lr: 0.4 },
-    check: ({ datasetType, loss }) => datasetType === 'xor' && loss < 0.05,
-  },
-  {
-    id: 'circle',
-    title: 'Mission 3: Ring Master',
-    dataset: 'circle',
-    kidDesc: 'Separate the inner teal island from the outer coral ring by combining at least 3 helper neurons.',
-    deepDesc: 'Approximate a closed radial decision boundary on concentric circles until MSE < 0.05.',
-    goalLabel: 'Circle · Loss < 0.05',
-    preset: { dataset: 'circle', hiddenSizes: [4], activation: 'tanh', lr: 0.35 },
-    check: ({ datasetType, loss }) => datasetType === 'circle' && loss < 0.05,
-  },
-  {
-    id: 'spiral',
-    title: 'Mission 4: Spiral Wizard',
-    dataset: 'spiral',
-    kidDesc: 'Stack 2 or 3 hidden layers (5–6 neurons each) to twist the boundary around the twin spirals!',
-    deepDesc: 'Compose multiple hidden representations (e.g. [6, 6] or [6, 6, 4] with tanh) to drive Spiral MSE < 0.05.',
-    goalLabel: 'Spiral · Loss < 0.05',
-    preset: { dataset: 'spiral', hiddenSizes: [6, 6], activation: 'tanh', lr: 0.3 },
-    check: ({ datasetType, loss }) => datasetType === 'spiral' && loss < 0.05,
-  },
-]
+function drawDecisionCanvas(canvas, offscreenRef, net, points, probe = null) {
+  if (!canvas || !net) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
 
-const GUIDED_STEPS = [
-  {
-    id: 1,
-    shortLabel: 'One Straight Fence',
-    title: 'Step 1: One Straight Fence (0 Hidden Layers)',
-    kidStory:
-      'Each dot on the map belongs to Team Teal or Team Coral. The shaded background is the AI’s guess map — blue where it guesses Teal, orange where it guesses Coral, and white right on the border. With 0 hidden layers, a single neuron can only draw ONE straight fence. Press Train and watch it spin into place!',
-    deepStory:
-      'With 0 hidden layers, the network reduces to a single logistic perceptron ŷ = σ(w₁x + w₂y + b). Because the decision boundary w₁x + w₂y + b = 0 is linear, it cleanly partitions linearly separable half-spaces.',
-    idleHint:
-      'Press Train (or +10 Epochs) and watch the single straight boundary rotate to separate Team Teal from Team Coral.',
-    preset: { dataset: 'linear', hiddenSizes: [], activation: 'tanh', lr: 0.4 },
-  },
-  {
-    id: 2,
-    shortLabel: 'The XOR Trap',
-    title: 'Step 2: The XOR Trap — When One Line Fails!',
-    kidStory:
-      'Now the dots are arranged like a checkerboard (XOR): opposite corners share the same team! Press Train with 0 hidden layers — can a single straight fence ever separate all four corners?',
-    deepStory:
-      'XOR is the classic non-linearly separable problem (Minsky & Papert, 1969). Train with 0 hidden layers to observe why a single hyperplane plateaus near 50% accuracy (MSE ≈ 0.25).',
-    idleHint:
-      'Press Train and watch carefully! Can 1 straight line ever put both Teal corners on the same side?',
-    preset: { dataset: 'xor', hiddenSizes: [], activation: 'tanh', lr: 0.4 },
-  },
-  {
-    id: 3,
-    shortLabel: 'Hidden Layers Bend It',
-    title: 'Step 3: Hidden Layers Bend the Map!',
-    kidStory:
-      'We just added a Hidden Layer of 4 helper neurons! Each helper draws its own simple fence, and the final output neuron combines their votes to bend the boundary around opposite corners. Press Train, then hover or click the map to watch individual neurons light up!',
-    deepStory:
-      'A hidden layer of 4 tanh units projects ℝ² into a 4D feature space where XOR becomes linearly separable. Train to watch the boundary warp, and probe points to inspect per-neuron activations.',
-    idleHint:
-      'Press Train to watch the 4 hidden neurons team up and bend the decision boundary around XOR!',
-    preset: { dataset: 'xor', hiddenSizes: [4], activation: 'tanh', lr: 0.4 },
-  },
-  {
-    id: 4,
-    shortLabel: 'Full Playground',
-    title: 'Step 4: Full Playground (All Controls Unlocked!)',
-    kidStory:
-      'You unlocked the entire lab! Switch between Linear, Circle, XOR, and Spiral, stack up to 3 hidden layers, compare Tanh / ReLU / Sigmoid activations, tune Learning Rate, and beat all 4 Experiment Missions!',
-    deepStory:
-      'Full MLP sandbox unlocked: experiment with dataset manifolds (Circle, Spiral), depth/width capacity (0–3 layers, 1–6 units), activation non-linearities (Tanh, ReLU, Sigmoid), and learning rate η.',
-    idleHint:
-      'Pick any dataset, build your own layer architecture, and press Train to test your hypothesis!',
-    preset: { dataset: 'circle', hiddenSizes: [4], activation: 'tanh', lr: 0.35 },
-  },
-]
+  if (!offscreenRef.current) {
+    const off = document.createElement('canvas')
+    off.width = GRID_RES
+    off.height = GRID_RES
+    offscreenRef.current = off
+  }
+  const offCtx = offscreenRef.current.getContext('2d')
+  const { values } = evaluateGrid(net, GRID_RES)
+  const imgData = offCtx.createImageData(GRID_RES, GRID_RES)
+  const data = imgData.data
 
-const CANVAS_SIZE = 320
-const GRID_RES = 36
-const MAX_SPARKLINE_POINTS = 100
-const LOSS_TARGET = 0.05
-const DEFAULT_PROBE = { x: 0.45, y: 0.45 }
-
-function formatActivation(val, isOutput = false) {
-  if (!Number.isFinite(val)) return '0.00'
-  if (isOutput) return val.toFixed(2)
-  return `${val >= 0 ? '+' : ''}${val.toFixed(2)}`
-}
-
-function getNodeActivationVisual(val, isOutput = false) {
-  const centered = isOutput ? (val - 0.5) * 2 : Math.max(-1, Math.min(1, val))
-  const intensity = Math.min(1, Math.abs(centered))
-
-  if (intensity < 0.06) {
-    return {
-      fill: '#f8fafc',
-      stroke: '#94a3b8',
-      textColor: '#0f172a',
-      glow: null,
+  for (let r = 0; r < GRID_RES; r++) {
+    for (let c = 0; c < GRID_RES; c++) {
+      const p = values[r][c]
+      const idx = (r * GRID_RES + c) * 4
+      if (p >= 0.5) {
+        const t = Math.min(1, (p - 0.5) * 2)
+        data[idx] = Math.round(255 - t * (255 - 56))
+        data[idx + 1] = Math.round(255 - t * (255 - 189))
+        data[idx + 2] = Math.round(255 - t * (255 - 248))
+      } else {
+        const t = Math.min(1, (0.5 - p) * 2)
+        data[idx] = Math.round(255 - t * (255 - 251))
+        data[idx + 1] = Math.round(255 - t * (255 - 146))
+        data[idx + 2] = Math.round(255 - t * (255 - 60))
+      }
+      data[idx + 3] = 255
     }
   }
+  offCtx.putImageData(imgData, 0, 0)
 
-  if (centered > 0) {
-    // Positive activation -> Teal / Sky glow
-    const r = Math.round(240 - intensity * (240 - 14))
-    const g = Math.round(249 - intensity * (249 - 165))
-    const b = Math.round(255 - intensity * (255 - 233))
-    return {
-      fill: `rgb(${r}, ${g}, ${b})`,
-      stroke: '#0284c7',
-      textColor: intensity > 0.52 ? '#ffffff' : '#0c4a6e',
-      glow: intensity > 0.28 ? 'url(#pgNodeGlowTeal)' : null,
-    }
+  ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
+  ctx.imageSmoothingEnabled = true
+  ctx.drawImage(offscreenRef.current, 0, 0, CANVAS_SIZE, CANVAS_SIZE)
+
+  // Center crosshairs
+  ctx.save()
+  ctx.strokeStyle = 'rgba(15, 23, 42, 0.14)'
+  ctx.setLineDash([4, 4])
+  ctx.beginPath()
+  ctx.moveTo(CANVAS_SIZE / 2, 0)
+  ctx.lineTo(CANVAS_SIZE / 2, CANVAS_SIZE)
+  ctx.moveTo(0, CANVAS_SIZE / 2)
+  ctx.lineTo(CANVAS_SIZE, CANVAS_SIZE / 2)
+  ctx.stroke()
+  ctx.restore()
+
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i]
+    const cx = ((pt.x + 1) / 2) * CANVAS_SIZE
+    const cy = ((1 - pt.y) / 2) * CANVAS_SIZE
+    ctx.beginPath()
+    ctx.arc(cx, cy, 4.5, 0, Math.PI * 2)
+    ctx.fillStyle = pt.label === 1 ? '#0284c7' : '#ea580c'
+    ctx.fill()
+    ctx.strokeStyle = '#ffffff'
+    ctx.lineWidth = 1.5
+    ctx.stroke()
   }
 
-  // Negative activation -> Coral / Rose glow
-  const r = Math.round(255 - intensity * (255 - 244))
-  const g = Math.round(241 - intensity * (241 - 63))
-  const b = Math.round(242 - intensity * (242 - 94))
-  return {
-    fill: `rgb(${r}, ${g}, ${b})`,
-    stroke: '#e11d48',
-    textColor: intensity > 0.52 ? '#ffffff' : '#881337',
-    glow: intensity > 0.28 ? 'url(#pgNodeGlowCoral)' : null,
+  if (probe) {
+    const px = ((probe.x + 1) / 2) * CANVAS_SIZE
+    const py = ((1 - probe.y) / 2) * CANVAS_SIZE
+    ctx.beginPath()
+    ctx.arc(px, py, 6, 0, Math.PI * 2)
+    ctx.fillStyle = 'rgba(255,255,255,0.85)'
+    ctx.fill()
+    ctx.strokeStyle = '#4f46e5'
+    ctx.lineWidth = 2.2
+    ctx.stroke()
   }
 }
 
-function countParameters(layerSizes) {
-  let total = 0
-  for (let i = 0; i < layerSizes.length - 1; i++) {
-    total += layerSizes[i] * layerSizes[i + 1] + layerSizes[i + 1]
-  }
-  return total
-}
-
-function DatasetGlyph({ type }) {
-  if (type === 'linear') {
-    return (
-      <svg className="pg-dataset-icon" viewBox="0 0 20 20" aria-hidden="true">
-        <line x1="3" y1="17" x2="17" y2="3" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="2 2" />
-        <circle cx="6" cy="6" r="2.3" fill="#f97316" />
-        <circle cx="14" cy="14" r="2.3" fill="#0ea5e9" />
-      </svg>
-    )
-  }
-  if (type === 'circle') {
-    return (
-      <svg className="pg-dataset-icon" viewBox="0 0 20 20" aria-hidden="true">
-        <circle cx="10" cy="10" r="7" fill="none" stroke="#f97316" strokeWidth="2.2" strokeDasharray="3 2" />
-        <circle cx="10" cy="10" r="3" fill="#0ea5e9" />
-      </svg>
-    )
-  }
-  if (type === 'xor') {
-    return (
-      <svg className="pg-dataset-icon" viewBox="0 0 20 20" aria-hidden="true">
-        <circle cx="5.5" cy="5.5" r="2.6" fill="#f97316" />
-        <circle cx="14.5" cy="14.5" r="2.6" fill="#f97316" />
-        <circle cx="14.5" cy="5.5" r="2.6" fill="#0ea5e9" />
-        <circle cx="5.5" cy="14.5" r="2.6" fill="#0ea5e9" />
-      </svg>
-    )
-  }
-  return (
-    <svg className="pg-dataset-icon" viewBox="0 0 20 20" aria-hidden="true">
-      <path d="M10 10 C10 6, 15 6, 15 10 C15 15, 7 16, 5 11" fill="none" stroke="#0ea5e9" strokeWidth="2" strokeLinecap="round" />
-      <path d="M10 10 C10 14, 5 14, 5 10 C5 5, 13 4, 15 9" fill="none" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  )
-}
-
-function LossSparkline({ history }) {
-  const width = 280
-  const height = 54
-  const padX = 4
-  const padY = 6
-
-  if (!history || history.length === 0) {
-    return <svg className="pg-sparkline-svg" viewBox={`0 0 ${width} ${height}`} />
-  }
-
-  const maxLoss = Math.max(0.32, ...history)
-  const targetY = padY + (1 - Math.min(1, LOSS_TARGET / maxLoss)) * (height - padY * 2)
-
-  const coords = history.map((val, idx) => {
-    const x =
-      history.length === 1
-        ? width / 2
-        : padX + (idx / (history.length - 1)) * (width - padX * 2)
-    const clamped = Math.max(0, Math.min(maxLoss, val))
-    const y = padY + (1 - clamped / maxLoss) * (height - padY * 2)
-    return [x, y]
-  })
-
-  const linePath = coords
-    .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`)
-    .join(' ')
-  const areaPath =
-    coords.length > 1
-      ? `${linePath} L${coords[coords.length - 1][0].toFixed(1)},${height - padY} L${coords[0][0].toFixed(1)},${height - padY} Z`
-      : ''
-
-  const last = coords[coords.length - 1]
-  const latestLoss = history[history.length - 1]
-
-  return (
-    <svg
-      className="pg-sparkline-svg"
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label={`Training loss curve currently at ${latestLoss.toFixed(4)}`}
-    >
-      <defs>
-        <linearGradient id="pgLossFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.32" />
-          <stop offset="100%" stopColor="#6366f1" stopOpacity="0.02" />
-        </linearGradient>
-      </defs>
-      <line
-        x1={padX}
-        y1={targetY}
-        x2={width - padX}
-        y2={targetY}
-        stroke="#10b981"
-        strokeWidth="1.2"
-        strokeDasharray="4 3"
-      />
-      <text x={width - padX - 2} y={Math.max(10, targetY - 3)} textAnchor="end" fontSize="9" fill="#059669" fontWeight="700">
-        Goal 0.05
-      </text>
-      {areaPath && <path d={areaPath} fill="url(#pgLossFill)" />}
-      <path d={linePath} fill="none" stroke="#4f46e5" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={last[0]} cy={last[1]} r="3.6" fill={latestLoss < LOSS_TARGET ? '#10b981' : '#4f46e5'} stroke="#ffffff" strokeWidth="1.5" />
-    </svg>
-  )
-}
-
-function NetworkDiagramSVG({ snapshot, activations, isDeepDive }) {
-  const width = 560
-  const height = 276
+function MiniNetworkSvg({ snapshot, activations }) {
+  const width = 460
+  const height = 220
   const { layerSizes, layers } = snapshot
   const numCols = layerSizes.length
-  const marginX = 56
-  const topY = 38
+  const marginX = 52
+  const topY = 34
   const bottomY = height - 26
 
-  const colPositions = layerSizes.map((count, colIdx) => {
-    const x =
-      numCols === 1
-        ? width / 2
-        : marginX + (colIdx / (numCols - 1)) * (width - marginX * 2)
+  const cols = layerSizes.map((count, colIdx) => {
+    const x = numCols === 1 ? width / 2 : marginX + (colIdx / (numCols - 1)) * (width - marginX * 2)
     const usableH = bottomY - topY
-    const stepY = count > 1 ? Math.min(42, usableH / (count - 1)) : 0
+    const stepY = count > 1 ? Math.min(40, usableH / (count - 1)) : 0
     const startY = topY + (usableH - stepY * (count - 1)) / 2
-    const nodes = Array.from({ length: count }, (_, nodeIdx) => ({
+    return {
       x,
-      y: startY + nodeIdx * stepY,
-    }))
-    return { x, nodes }
+      nodes: Array.from({ length: count }, (_, idx) => ({ x, y: startY + idx * stepY })),
+    }
   })
 
-  const edges = []
-  for (let l = 0; l < layers.length; l++) {
-    const fromNodes = colPositions[l].nodes
-    const toNodes = colPositions[l + 1].nodes
-    const weights = layers[l].weights
-    const srcActs = activations?.[l] || []
-    for (let j = 0; j < toNodes.length; j++) {
-      for (let i = 0; i < fromNodes.length; i++) {
-        const w = weights[j][i]
-        const srcAct = srcActs[i] ?? 0
-        const signal = srcAct * w
-        const mag = Math.abs(w)
-        const signalMag = Math.abs(signal)
-        const isActiveSignal = signalMag >= 0.22
-        const strokeWidth = Math.min(5.2, 0.75 + mag * 1.15 + signalMag * 0.45)
-        const opacity = Math.min(0.96, 0.16 + mag * 0.22 + signalMag * 0.34)
-        edges.push({
-          key: `${l}-${i}-${j}`,
-          x1: fromNodes[i].x,
-          y1: fromNodes[i].y,
-          x2: toNodes[j].x,
-          y2: toNodes[j].y,
-          w,
-          signal,
-          signalMag,
-          isActiveSignal,
-          color: w >= 0 ? '#0ea5e9' : '#f43f5e',
-          signalColor: signal >= 0 ? '#38bdf8' : '#fb7185',
-          strokeWidth,
-          opacity,
-        })
-      }
-    }
-  }
-
   return (
-    <svg
-      className="pg-network-svg"
-      viewBox={`0 0 ${width} ${height}`}
-      role="img"
-      aria-label={`Neural network diagram with live activations across layers ${layerSizes.join(' to ')}`}
-    >
-      <defs>
-        <filter id="pgEdgeGlow" x="-20%" y="-20%" width="140%" height="140%">
-          <feGaussianBlur stdDeviation="2.4" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-        <radialGradient id="pgNodeGlowTeal" cx="50%" cy="50%" r="50%">
-          <stop offset="55%" stopColor="#0ea5e9" stopOpacity="0.34" />
-          <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id="pgNodeGlowCoral" cx="50%" cy="50%" r="50%">
-          <stop offset="55%" stopColor="#f43f5e" stopOpacity="0.34" />
-          <stop offset="100%" stopColor="#f43f5e" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-
-      {/* Column headers */}
-      {colPositions.map((col, colIdx) => {
-        let label = `Hidden ${colIdx}`
-        if (colIdx === 0) label = 'Inputs'
-        else if (colIdx === numCols - 1) label = 'Output'
-        return (
-          <text
-            key={`hdr-${colIdx}`}
-            x={col.x}
-            y={16}
-            textAnchor="middle"
-            fontSize="11"
-            fontWeight="700"
-            fill="#64748b"
-          >
-            {label}
-          </text>
-        )
-      })}
-
-      {/* Active signal-carrying glow underlay */}
-      <g>
-        {edges
-          .filter((e) => e.isActiveSignal)
-          .map((e) => (
+    <svg className="pg-network-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Live neural network diagram">
+      {cols.map((col, colIdx) => (
+        <text key={colIdx} x={col.x} y={16} textAnchor="middle" fontSize="11" fontWeight="700" fill="#64748b">
+          {colIdx === 0 ? 'Inputs' : colIdx === numCols - 1 ? 'Output' : `Hidden ${colIdx}`}
+        </text>
+      ))}
+      {layers.map((layer, l) =>
+        layer.weights.map((row, j) =>
+          row.map((w, i) => (
             <line
-              key={`glow-${e.key}`}
-              x1={e.x1}
-              y1={e.y1}
-              x2={e.x2}
-              y2={e.y2}
-              stroke={e.signalColor}
-              strokeWidth={(e.strokeWidth + 2.4).toFixed(2)}
-              strokeOpacity={Math.min(0.45, 0.12 + e.signalMag * 0.25).toFixed(2)}
+              key={`${l}-${i}-${j}`}
+              x1={cols[l].nodes[i].x}
+              y1={cols[l].nodes[i].y}
+              x2={cols[l + 1].nodes[j].x}
+              y2={cols[l + 1].nodes[j].y}
+              stroke={w >= 0 ? '#0ea5e9' : '#f43f5e'}
+              strokeWidth={Math.min(4.5, 0.8 + Math.abs(w) * 1.1)}
+              strokeOpacity={Math.min(0.92, 0.2 + Math.abs(w) * 0.28)}
               strokeLinecap="round"
-              filter="url(#pgEdgeGlow)"
             />
-          ))}
-      </g>
-
-      {/* Weighted connections */}
-      <g>
-        {edges.map((e) => (
-          <line
-            key={e.key}
-            x1={e.x1}
-            y1={e.y1}
-            x2={e.x2}
-            y2={e.y2}
-            stroke={e.color}
-            strokeWidth={e.strokeWidth.toFixed(2)}
-            strokeOpacity={e.opacity.toFixed(2)}
-            strokeLinecap="round"
-          >
-            <title>
-              {`Weight: ${e.w >= 0 ? '+' : ''}${e.w.toFixed(2)} | Live signal: ${e.signal >= 0 ? '+' : ''}${e.signal.toFixed(2)}`}
-            </title>
-          </line>
-        ))}
-      </g>
-
-      {/* Nodes with live activation fills & numeric readouts */}
-      {colPositions.map((col, colIdx) => {
+          )),
+        ),
+      )}
+      {cols.map((col, colIdx) => {
         const isInput = colIdx === 0
         const isOutput = colIdx === numCols - 1
-        const biases = !isInput ? layers[colIdx - 1]?.biases || [] : []
-        const layerActs = activations?.[colIdx] || []
-
-        return col.nodes.map((node, nodeIdx) => {
-          const bias = !isInput ? biases[nodeIdx] ?? 0 : 0
-          const actVal = layerActs[nodeIdx] ?? 0
-          const vis = getNodeActivationVisual(actVal, isOutput)
-          const radius = isInput || isOutput ? 14.5 : 12.5
-          let label = isDeepDive ? `h${colIdx}.${nodeIdx + 1}` : `${nodeIdx + 1}`
-
-          if (isInput) {
-            label = nodeIdx === 0 ? 'x' : 'y'
-          } else if (isOutput) {
-            label = 'ŷ'
-          }
-
-          const valText = formatActivation(actVal, isOutput)
-
+        const acts = activations?.[colIdx] || []
+        return col.nodes.map((node, idx) => {
+          const val = acts[idx] ?? 0
+          const centered = isOutput ? (val - 0.5) * 2 : Math.max(-1, Math.min(1, val))
+          const fill = centered > 0.15 ? '#e0f2fe' : centered < -0.15 ? '#ffe4e6' : '#f8fafc'
+          const stroke = centered > 0.15 ? '#0284c7' : centered < -0.15 ? '#e11d48' : '#94a3b8'
           return (
-            <g key={`n-${colIdx}-${nodeIdx}`}>
-              {vis.glow && (
-                <circle cx={node.x} cy={node.y} r={radius + 8} fill={vis.glow} />
-              )}
-              <circle
-                cx={node.x}
-                cy={node.y}
-                r={radius}
-                fill={vis.fill}
-                stroke={vis.stroke}
-                strokeWidth={isInput || isOutput ? 2.4 : 2.2}
-              >
-                <title>
-                  {isInput
-                    ? `Input ${label} = ${valText}`
-                    : isOutput
-                      ? `Output probability ŷ = ${(actVal * 100).toFixed(1)}% (bias: ${bias.toFixed(2)})`
-                      : `Hidden neuron ${nodeIdx + 1}: activation = ${valText} (bias: ${bias.toFixed(2)})`}
-                </title>
-              </circle>
-              <text
-                x={node.x}
-                y={node.y + 3.8}
-                textAnchor="middle"
-                fontSize={isDeepDive && !isInput && !isOutput ? '8.5' : '11'}
-                fontWeight="700"
-                fontFamily="var(--font-mono)"
-                fill={vis.textColor}
-              >
-                {label}
-              </text>
-              <rect
-                x={node.x - 19}
-                y={node.y + radius + 2}
-                width={38}
-                height={13}
-                rx={4}
-                fill="rgba(255, 255, 255, 0.9)"
-                stroke="rgba(148, 163, 184, 0.35)"
-                strokeWidth="0.7"
-              />
-              <text
-                x={node.x}
-                y={node.y + radius + 11.2}
-                textAnchor="middle"
-                fontSize="8.8"
-                fontWeight="700"
-                fontFamily="var(--font-mono)"
-                fill="#334155"
-              >
-                {valText}
+            <g key={`n-${colIdx}-${idx}`}>
+              <circle cx={node.x} cy={node.y} r={13} fill={fill} stroke={stroke} strokeWidth="2.2" />
+              <text x={node.x} y={node.y + 4} textAnchor="middle" fontSize="10.5" fontWeight="700" fontFamily="var(--font-mono)" fill="#0f172a">
+                {isInput ? (idx === 0 ? 'x' : 'y') : isOutput ? 'ŷ' : idx + 1}
               </text>
             </g>
           )
@@ -556,1225 +176,658 @@ function NetworkDiagramSVG({ snapshot, activations, isDeepDive }) {
   )
 }
 
-export default function PlaygroundLab() {
-  const { isDeepDive, completedStages, markStageComplete, navigate } = useLearning()
-  const stage = getStageById(2)
-  const prevStage = STAGES.find((s) => s.id === 1)
-  const nextStage = STAGES.find((s) => s.id === 3)
-  const isStageDone = completedStages.has(2)
+/**
+ * Embedded XOR comparison demo:
+ * Lets the reader experience 0 hidden layers failing on XOR, then click ONE button
+ * to add 4 hidden helper neurons and watch the boundary bend around all 4 corners!
+ */
+function XorBreakthroughDemo() {
+  const dataset = useMemo(() => generateDataset('xor', 120, 42), [])
+  const [hasHidden, setHasHidden] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [epoch, setEpoch] = useState(0)
+  const [probe, setProbe] = useState({ x: 0.45, y: 0.45 })
 
-  // Progressive 4-step guided workflow state (starts on Step 1: One Straight Fence)
-  const [guidedStep, setGuidedStep] = useState(1)
-  const [completedSteps, setCompletedSteps] = useState(() => new Set())
-
-  // Lab configuration state (matches Step 1 preset)
-  const [datasetType, setDatasetType] = useState('linear')
-  const [hiddenSizes, setHiddenSizes] = useState([])
-  const [activation, setActivation] = useState('tanh')
-  const [learningRate, setLearningRate] = useState(0.4)
-  const [seed, setSeed] = useState(42)
-
-  // Initial network & dataset for clean first render (no setState-in-effect)
-  const dataset = useMemo(() => generateDataset(datasetType, 120, 42), [datasetType])
-  const initialBundle = useMemo(() => {
-    const initDataset = generateDataset('linear', 120, 42)
-    const initNet = createMLP({
+  const createFresh = useCallback((withHidden, seed = 42) => {
+    const net = createMLP({
       inputSize: 2,
-      hiddenSizes: [],
+      hiddenSizes: withHidden ? [4] : [],
       outputSize: 1,
       activation: 'tanh',
       learningRate: 0.4,
-      seed: 42,
+      seed,
     })
-    const evalRes = initNet.evaluate(initDataset)
-    const initTrace = initNet.forward([DEFAULT_PROBE.x, DEFAULT_PROBE.y])
-    return {
-      net: initNet,
-      loss: evalRes.loss,
-      accuracy: evalRes.accuracy,
-      snapshot: initNet.getSnapshot(),
-      trace: initTrace,
-    }
-  }, [])
-
-  // Training & UI telemetry state
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [epoch, setEpoch] = useState(0)
-  const [loss, setLoss] = useState(initialBundle.loss)
-  const [accuracy, setAccuracy] = useState(initialBundle.accuracy)
-  const [lossHistory, setLossHistory] = useState(() => [initialBundle.loss])
-  const [snapshot, setSnapshot] = useState(initialBundle.snapshot)
-  const [solvedMissions, setSolvedMissions] = useState(() => new Set())
-  const [recentCelebration, setRecentCelebration] = useState(null)
-
-  // Live probe point for real-time node activation tracing
-  const [pinnedProbe, setPinnedProbe] = useState(DEFAULT_PROBE)
-  const [isPinned, setIsPinned] = useState(false)
-  const [hoverProbe, setHoverProbe] = useState(null)
-  const [probeTrace, setProbeTrace] = useState(initialBundle.trace)
-
-  const activeProbe = hoverProbe || pinnedProbe
-
-  // Refs for smooth 60fps training loop & canvas rendering
-  const canvasRef = useRef(null)
-  const offscreenCanvasRef = useRef(null)
-  const mlpRef = useRef(initialBundle.net)
-  const datasetRef = useRef(dataset)
-  const lrRef = useRef(learningRate)
-  const configRef = useRef({ datasetType, hiddenSizes })
-  const solvedMissionsRef = useRef(solvedMissions)
-  const activeProbeRef = useRef(activeProbe)
-  const isPinnedRef = useRef(isPinned)
-  const guidedStepRef = useRef(guidedStep)
-  const rafRef = useRef(null)
-
-  // Sync refs in effects (React Compiler safe)
-  useEffect(() => {
-    datasetRef.current = dataset
+    const ev = net.evaluate(dataset)
+    return { net, loss: ev.loss, accuracy: ev.accuracy, snapshot: net.getSnapshot(), trace: net.forward([0.45, 0.45]) }
   }, [dataset])
 
-  useEffect(() => {
-    lrRef.current = learningRate
-    if (mlpRef.current) {
-      mlpRef.current.learningRate = learningRate
-    }
-  }, [learningRate])
+  const initial = useMemo(() => createFresh(false, 42), [createFresh])
+  const [loss, setLoss] = useState(initial.loss)
+  const [accuracy, setAccuracy] = useState(initial.accuracy)
+  const [snapshot, setSnapshot] = useState(initial.snapshot)
+  const [trace, setTrace] = useState(initial.trace)
+
+  const canvasRef = useRef(null)
+  const offscreenRef = useRef(null)
+  const mlpRef = useRef(initial.net)
+  const rafRef = useRef(null)
+  const solvedSoundRef = useRef(false)
 
   useEffect(() => {
-    configRef.current = { datasetType, hiddenSizes }
-  }, [datasetType, hiddenSizes])
+    drawDecisionCanvas(canvasRef.current, offscreenRef, mlpRef.current, dataset, probe)
+  }, [dataset, probe])
 
-  useEffect(() => {
-    solvedMissionsRef.current = solvedMissions
-  }, [solvedMissions])
-
-  useEffect(() => {
-    activeProbeRef.current = activeProbe
-    isPinnedRef.current = isPinned
-  }, [activeProbe, isPinned])
-
-  useEffect(() => {
-    guidedStepRef.current = guidedStep
-  }, [guidedStep])
-
-  const fireConfetti = useCallback(() => {
-    if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      return
-    }
-    confetti({
-      particleCount: 72,
-      spread: 68,
-      origin: { y: 0.65 },
-      colors: ['#6366f1', '#0ea5e9', '#10b981', '#f97316', '#f59e0b'],
-    })
-  }, [])
-
-  const drawCanvas = useCallback((net, points, probe = activeProbeRef.current, pinned = isPinnedRef.current) => {
-    const canvas = canvasRef.current
-    if (!canvas || !net) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    if (!offscreenCanvasRef.current) {
-      const off = document.createElement('canvas')
-      off.width = GRID_RES
-      off.height = GRID_RES
-      offscreenCanvasRef.current = off
-    }
-    const offCanvas = offscreenCanvasRef.current
-    const offCtx = offCanvas.getContext('2d')
-    const { values } = evaluateGrid(net, GRID_RES)
-    const imgData = offCtx.createImageData(GRID_RES, GRID_RES)
-    const data = imgData.data
-
-    for (let r = 0; r < GRID_RES; r++) {
-      const row = values[r]
-      for (let c = 0; c < GRID_RES; c++) {
-        const p = row[c]
-        const idx = (r * GRID_RES + c) * 4
-        if (p >= 0.5) {
-          const t = Math.min(1, (p - 0.5) * 2)
-          // Blend white -> sky-teal (#38bdf8)
-          data[idx] = Math.round(255 - t * (255 - 56))
-          data[idx + 1] = Math.round(255 - t * (255 - 189))
-          data[idx + 2] = Math.round(255 - t * (255 - 248))
-        } else {
-          const t = Math.min(1, (0.5 - p) * 2)
-          // Blend white -> soft coral-orange (#fb923c)
-          data[idx] = Math.round(255 - t * (255 - 251))
-          data[idx + 1] = Math.round(255 - t * (255 - 146))
-          data[idx + 2] = Math.round(255 - t * (255 - 60))
-        }
-        data[idx + 3] = 255
-      }
-    }
-    offCtx.putImageData(imgData, 0, 0)
-
-    ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE)
-    ctx.imageSmoothingEnabled = true
-    ctx.imageSmoothingQuality = 'high'
-    ctx.drawImage(offCanvas, 0, 0, CANVAS_SIZE, CANVAS_SIZE)
-
-    // Subtle coordinate crosshairs at x=0, y=0
-    ctx.save()
-    ctx.strokeStyle = 'rgba(15, 23, 42, 0.14)'
-    ctx.lineWidth = 1
-    ctx.setLineDash([4, 4])
-    ctx.beginPath()
-    ctx.moveTo(CANVAS_SIZE / 2, 0)
-    ctx.lineTo(CANVAS_SIZE / 2, CANVAS_SIZE)
-    ctx.moveTo(0, CANVAS_SIZE / 2)
-    ctx.lineTo(CANVAS_SIZE, CANVAS_SIZE / 2)
-    ctx.stroke()
-    ctx.restore()
-
-    // Glowing data points
-    for (let i = 0; i < points.length; i++) {
-      const pt = points[i]
-      const cx = ((pt.x + 1) / 2) * CANVAS_SIZE
-      const cy = ((1 - pt.y) / 2) * CANVAS_SIZE
-      const fill = pt.label === 1 ? '#0284c7' : '#ea580c'
-
-      ctx.save()
-      ctx.shadowColor = pt.label === 1 ? 'rgba(14, 165, 233, 0.65)' : 'rgba(249, 115, 22, 0.65)'
-      ctx.shadowBlur = 7
-      ctx.beginPath()
-      ctx.arc(cx, cy, 4.6, 0, Math.PI * 2)
-      ctx.fillStyle = fill
-      ctx.fill()
-      ctx.restore()
-
-      ctx.beginPath()
-      ctx.arc(cx, cy, 4.6, 0, Math.PI * 2)
-      ctx.strokeStyle = '#ffffff'
-      ctx.lineWidth = 1.6
-      ctx.stroke()
-    }
-
-    // Crisp crosshair marker for the live signal probe point
-    if (probe) {
-      const px = ((probe.x + 1) / 2) * CANVAS_SIZE
-      const py = ((1 - probe.y) / 2) * CANVAS_SIZE
-
-      ctx.save()
-      ctx.strokeStyle = '#ffffff'
-      ctx.lineWidth = 3.5
-      ctx.beginPath()
-      ctx.moveTo(px - 11, py)
-      ctx.lineTo(px + 11, py)
-      ctx.moveTo(px, py - 11)
-      ctx.lineTo(px, py + 11)
-      ctx.stroke()
-
-      ctx.strokeStyle = pinned ? '#4f46e5' : '#0f172a'
-      ctx.lineWidth = 1.8
-      ctx.beginPath()
-      ctx.moveTo(px - 10, py)
-      ctx.lineTo(px + 10, py)
-      ctx.moveTo(px, py - 10)
-      ctx.lineTo(px, py + 10)
-      ctx.stroke()
-
-      ctx.beginPath()
-      ctx.arc(px, py, 6.5, 0, Math.PI * 2)
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)'
-      ctx.fill()
-      ctx.lineWidth = 2.2
-      ctx.strokeStyle = pinned ? '#4f46e5' : '#0f172a'
-      ctx.stroke()
-
-      ctx.beginPath()
-      ctx.arc(px, py, 2.2, 0, Math.PI * 2)
-      ctx.fillStyle = pinned ? '#4f46e5' : '#0f172a'
-      ctx.fill()
-      ctx.restore()
-    }
-  }, [])
-
-  const checkMissions = useCallback(
-    (currentLoss, currentEpoch) => {
-      if (currentEpoch <= 0 || currentLoss >= LOSS_TARGET) return
-      const { datasetType: ds, hiddenSizes: hs } = configRef.current
-      const alreadySolved = solvedMissionsRef.current
-
-      const newlySolved = MISSIONS.filter(
-        (m) => !alreadySolved.has(m.id) && m.check({ datasetType: ds, hiddenSizes: hs, loss: currentLoss }),
-      )
-
-      if (newlySolved.length > 0) {
-        const nextSet = new Set(alreadySolved)
-        for (const m of newlySolved) nextSet.add(m.id)
-        solvedMissionsRef.current = nextSet
-        setSolvedMissions(nextSet)
-        setRecentCelebration(newlySolved[0].title)
-        playSuccess()
-        fireConfetti()
-      }
-    },
-    [fireConfetti],
-  )
-
-  // Paint initial decision boundary on mount
-  useEffect(() => {
-    if (mlpRef.current) {
-      drawCanvas(mlpRef.current, datasetRef.current)
-    }
-  }, [drawCanvas])
-
-  // Rebuild network synchronously from user actions (avoids setState-in-effect)
-  const rebuildNetwork = useCallback(
-    ({
-      nextDatasetType = datasetType,
-      nextHiddenSizes = hiddenSizes,
-      nextActivation = activation,
-      nextLr = learningRate,
-      nextSeed = seed,
-    }) => {
-      setIsPlaying(false)
-      const nextPoints = generateDataset(nextDatasetType, 120, 42)
-      const net = createMLP({
-        inputSize: 2,
-        hiddenSizes: nextHiddenSizes,
-        outputSize: 1,
-        activation: nextActivation,
-        learningRate: nextLr,
-        seed: nextSeed,
-      })
-      mlpRef.current = net
-      datasetRef.current = nextPoints
-      lrRef.current = nextLr
-      configRef.current = { datasetType: nextDatasetType, hiddenSizes: nextHiddenSizes }
-
-      const initial = net.evaluate(nextPoints)
-      const probe = activeProbeRef.current
-      const nextTrace = net.forward([probe.x, probe.y])
-      setDatasetType(nextDatasetType)
-      setHiddenSizes(nextHiddenSizes)
-      setActivation(nextActivation)
-      setLearningRate(nextLr)
-      setSeed(nextSeed)
-      setEpoch(0)
-      setLoss(initial.loss)
-      setAccuracy(initial.accuracy)
-      setLossHistory([initial.loss])
-      setSnapshot(net.getSnapshot())
-      setProbeTrace(nextTrace)
-      drawCanvas(net, nextPoints, probe, isPinnedRef.current)
-    },
-    [datasetType, hiddenSizes, activation, learningRate, seed, drawCanvas],
-  )
-
-  // Run N training epochs and update visuals
-  const runEpochs = useCallback(
-    (count) => {
-      const net = mlpRef.current
-      const pts = datasetRef.current
-      if (!net || !pts) return
-
-      let result = null
-      for (let i = 0; i < count; i++) {
-        result = net.trainStep(pts, lrRef.current)
-      }
-      if (!result) return
-
-      const probe = activeProbeRef.current
-      const nextTrace = net.forward([probe.x, probe.y])
-      setEpoch(result.epoch)
-      setLoss(result.loss)
-      setAccuracy(result.accuracy)
-      setLossHistory((prev) => {
-        const next = [...prev, result.loss]
-        if (next.length > MAX_SPARKLINE_POINTS) {
-          return next.slice(next.length - MAX_SPARKLINE_POINTS)
-        }
-        return next
-      })
-      setSnapshot(net.getSnapshot())
-      setProbeTrace(nextTrace)
-      drawCanvas(net, pts, probe, isPinnedRef.current)
-      checkMissions(result.loss, result.epoch)
-
-      // Mark guided step progress automatically
-      const stepNow = guidedStepRef.current
-      const { datasetType: dsNow, hiddenSizes: hsNow } = configRef.current
-      if (
-        (stepNow === 1 && dsNow === 'linear' && (result.loss < LOSS_TARGET || result.accuracy >= 0.95)) ||
-        (stepNow === 2 && dsNow === 'xor' && hsNow.length === 0 && result.epoch >= 25) ||
-        (stepNow === 3 && dsNow === 'xor' && hsNow.length >= 1 && (result.loss < LOSS_TARGET || result.accuracy >= 0.95))
-      ) {
-        setCompletedSteps((prev) => {
-          if (prev.has(stepNow)) return prev
-          const next = new Set(prev)
-          next.add(stepNow)
-          return next
-        })
-      }
-    },
-    [drawCanvas, checkMissions],
-  )
-
-  // Animation loop when playing
-  useEffect(() => {
-    if (!isPlaying) {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current)
-        rafRef.current = null
-      }
-      return undefined
-    }
-
-    const totalNeurons = hiddenSizes.reduce((sum, n) => sum + n, 0)
-    const epochsPerFrame = totalNeurons >= 10 ? 3 : 5
-
-    const tick = () => {
-      runEpochs(epochsPerFrame)
-      rafRef.current = requestAnimationFrame(tick)
-    }
-    rafRef.current = requestAnimationFrame(tick)
-
-    return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current)
-        rafRef.current = null
-      }
-    }
-  }, [isPlaying, hiddenSizes, runEpochs])
-
-  // Architecture & dataset handlers
-  const handleSelectDataset = (nextDatasetType) => {
-    rebuildNetwork({ nextDatasetType })
-  }
-
-  const handleSelectActivation = (nextActivation) => {
-    rebuildNetwork({ nextActivation })
-  }
-
-  const handleAddLayer = () => {
-    if (hiddenSizes.length >= 3) return
-    rebuildNetwork({ nextHiddenSizes: [...hiddenSizes, 4] })
-  }
-
-  const handleRemoveLayer = () => {
-    if (hiddenSizes.length <= 0) return
-    rebuildNetwork({ nextHiddenSizes: hiddenSizes.slice(0, -1) })
-  }
-
-  const handleAdjustNeurons = (layerIdx, delta) => {
-    const nextHiddenSizes = hiddenSizes.map((count, idx) =>
-      idx === layerIdx ? Math.max(1, Math.min(6, count + delta)) : count,
-    )
-    rebuildNetwork({ nextHiddenSizes })
-  }
-
-  const handleResetWeights = () => {
-    playClick()
-    rebuildNetwork({ nextSeed: seed + 17 })
-  }
-
-  const handleTogglePlay = () => {
-    playClick()
-    setIsPlaying((prev) => !prev)
-  }
-
-  const handleStep10 = () => {
+  const switchArchitecture = (withHidden) => {
     playClick()
     setIsPlaying(false)
-    runEpochs(10)
+    solvedSoundRef.current = false
+    setHasHidden(withHidden)
+    const fresh = createFresh(withHidden, withHidden ? 42 : 42)
+    mlpRef.current = fresh.net
+    setEpoch(0)
+    setLoss(fresh.loss)
+    setAccuracy(fresh.accuracy)
+    setSnapshot(fresh.snapshot)
+    setTrace(fresh.trace)
+    drawDecisionCanvas(canvasRef.current, offscreenRef, fresh.net, dataset, probe)
   }
 
-  const handleCompleteStage = () => {
-    playSuccess()
-    markStageComplete(2)
-  }
-
-  const applyPreset = (preset) => {
-    rebuildNetwork({
-      nextDatasetType: preset.dataset,
-      nextHiddenSizes: preset.hiddenSizes,
-      nextActivation: preset.activation,
-      nextLr: preset.lr,
-      nextSeed: seed + 1,
-    })
-  }
-
-  const goToStep = (stepId) => {
-    const targetStep = GUIDED_STEPS.find((s) => s.id === stepId)
-    if (!targetStep) return
-    playClick()
-    guidedStepRef.current = stepId
-    setGuidedStep(stepId)
-    applyPreset(targetStep.preset)
-  }
-
-  const jumpToSandbox = () => {
-    playClick()
-    guidedStepRef.current = 4
-    setGuidedStep(4)
-  }
-
-  const getCanvasCoords = (e) => {
-    const canvas = canvasRef.current
-    if (!canvas) return null
-    const rect = canvas.getBoundingClientRect()
-    const nx = Math.max(-1, Math.min(1, ((e.clientX - rect.left) / rect.width) * 2 - 1))
-    const ny = Math.max(-1, Math.min(1, 1 - ((e.clientY - rect.top) / rect.height) * 2))
-    return { x: nx, y: ny }
-  }
-
-  const handleCanvasMouseMove = (e) => {
-    const net = mlpRef.current
-    const coords = getCanvasCoords(e)
-    if (!net || !coords) return
-    const trace = net.forward([coords.x, coords.y])
-    const nextHover = { x: coords.x, y: coords.y, prob: trace.output }
-    activeProbeRef.current = nextHover
-    setHoverProbe(nextHover)
-    setProbeTrace(trace)
-    drawCanvas(net, datasetRef.current, nextHover, isPinnedRef.current)
-  }
-
-  const handleCanvasMouseLeave = () => {
-    const net = mlpRef.current
-    setHoverProbe(null)
-    activeProbeRef.current = pinnedProbe
-    if (net) {
-      setProbeTrace(net.forward([pinnedProbe.x, pinnedProbe.y]))
-      drawCanvas(net, datasetRef.current, pinnedProbe, isPinnedRef.current)
-    }
-  }
-
-  const handleCanvasClick = (e) => {
-    const net = mlpRef.current
-    const coords = getCanvasCoords(e)
-    if (!net || !coords) return
-    playClick()
-
-    const distToPinned = Math.hypot(coords.x - pinnedProbe.x, coords.y - pinnedProbe.y)
-    if (isPinned && distToPinned < 0.09) {
-      // Clicking right on the pinned point unpins it back to default
-      isPinnedRef.current = false
-      activeProbeRef.current = DEFAULT_PROBE
-      setIsPinned(false)
-      setPinnedProbe(DEFAULT_PROBE)
-      setHoverProbe(null)
-      setProbeTrace(net.forward([DEFAULT_PROBE.x, DEFAULT_PROBE.y]))
-      drawCanvas(net, datasetRef.current, DEFAULT_PROBE, false)
-      return
-    }
-
-    const trace = net.forward([coords.x, coords.y])
-    isPinnedRef.current = true
-    activeProbeRef.current = coords
-    setIsPinned(true)
-    setPinnedProbe(coords)
-    setHoverProbe({ x: coords.x, y: coords.y, prob: trace.output })
-    setProbeTrace(trace)
-    drawCanvas(net, datasetRef.current, coords, true)
-  }
-
-  const handleUnpinProbe = () => {
-    const net = mlpRef.current
-    playClick()
-    isPinnedRef.current = false
-    activeProbeRef.current = DEFAULT_PROBE
-    setIsPinned(false)
-    setPinnedProbe(DEFAULT_PROBE)
-    setHoverProbe(null)
-    if (net) {
-      setProbeTrace(net.forward([DEFAULT_PROBE.x, DEFAULT_PROBE.y]))
-      drawCanvas(net, datasetRef.current, DEFAULT_PROBE, false)
-    }
-  }
-
-  const totalParams = countParameters(snapshot.layerSizes)
-  const activeDatasetMeta = DATASET_OPTIONS.find((d) => d.id === datasetType) || DATASET_OPTIONS[0]
-  const activeStepMeta = GUIDED_STEPS.find((s) => s.id === guidedStep) || GUIDED_STEPS[0]
-
-  // Progressive UI disclosure flags (never locks out users — click any step or Free Sandbox!)
-  const showDatasetPicker = guidedStep === 4
-  const showLayerControls = guidedStep >= 3
-  const showAdvancedHyper = guidedStep === 4
-  const showMissions = guidedStep === 4
-
-  // Dynamic "What's Happening Right Now" Live Narrator
-  const isStuckOnXor = datasetType === 'xor' && hiddenSizes.length === 0 && epoch >= 25
-  const isSolvedNow = epoch > 0 && (loss < LOSS_TARGET || accuracy >= 0.95)
-  const probeTeamLabel = probeTrace.output >= 0.5 ? 'Teal' : 'Coral'
-  const probePct = Math.round(
-    (probeTrace.output >= 0.5 ? probeTrace.output : 1 - probeTrace.output) * 100,
+  const runSteps = useCallback(
+    (count) => {
+      const net = mlpRef.current
+      let res = null
+      for (let i = 0; i < count; i++) res = net.trainEpoch(dataset)
+      if (!res) return
+      setEpoch((e) => e + count)
+      setLoss(res.loss)
+      setAccuracy(res.accuracy)
+      setSnapshot(net.getSnapshot())
+      setTrace(net.forward([probe.x, probe.y]))
+      drawDecisionCanvas(canvasRef.current, offscreenRef, net, dataset, probe)
+      if (hasHidden && res.loss < 0.045 && !solvedSoundRef.current) {
+        solvedSoundRef.current = true
+        playSuccess()
+        setIsPlaying(false)
+      }
+    },
+    [dataset, probe, hasHidden],
   )
 
-  let narratorTone = 'is-idle'
-  let narratorBadge = 'Ready'
-  let narratorText = activeStepMeta.idleHint
-  let narratorCtaLabel = null
-  let narratorNextStep = null
-
-  if (isStuckOnXor) {
-    narratorTone = 'is-stuck'
-    narratorBadge = 'Stuck at 1969 Limit!'
-    narratorText = `After ${epoch} rounds, accuracy is stuck near ${Math.round(accuracy * 100)}% (Loss ${loss.toFixed(3)})! No single straight fence can ever put opposite XOR corners on the same side — that’s why neural networks need a Hidden Layer!`
-    narratorCtaLabel = 'Add a Hidden Layer (4 Neurons) →'
-    narratorNextStep = 3
-  } else if (isSolvedNow) {
-    narratorTone = 'is-solved'
-    narratorBadge = 'Solved!'
-    if (guidedStep === 1) {
-      narratorText = `Nice! In ${epoch} epochs, one straight fence separated Team Teal and Team Coral (${Math.round(accuracy * 100)}% accuracy, Loss ${loss.toFixed(3)}). Ready to see a puzzle that stumps a single straight line?`
-      narratorCtaLabel = 'Next: Step 2 (The XOR Trap) →'
-      narratorNextStep = 2
-    } else if (guidedStep === 3) {
-      narratorText = `You cracked XOR! The ${hiddenSizes[0] || 4} hidden neurons teamed up to bend the boundary around opposite corners (${Math.round(accuracy * 100)}% accuracy). Hover the map to see which hidden neurons fire for each corner!`
-      narratorCtaLabel = 'Next: Step 4 (Full Playground) →'
-      narratorNextStep = 4
-    } else {
-      narratorText = `Awesome! Your network separated ${activeDatasetMeta.label} at ${Math.round(accuracy * 100)}% accuracy (Loss ${loss.toFixed(3)}). Try a harder dataset or tweak the architecture!`
+  useEffect(() => {
+    if (!isPlaying) return undefined
+    let active = true
+    const tick = () => {
+      if (!active) return
+      runSteps(3)
+      rafRef.current = window.requestAnimationFrame(tick)
     }
-  } else if (isPlaying) {
-    narratorTone = 'is-training'
-    narratorBadge = 'Training Live'
-    narratorText =
-      hiddenSizes.length === 0
-        ? `Epoch ${epoch}: The neuron is nudging its 2 weights (watch the Teal & Coral lines thicken or flip!) to spin the straight fence and shrink Loss (${loss.toFixed(3)}).`
-        : `Epoch ${epoch}: Backpropagation is tuning all ${totalParams} weights & biases (watch the lines change thickness!) so the hidden neurons bend the map and shrink Loss (${loss.toFixed(3)}).`
-  } else if (epoch > 0) {
-    narratorTone = 'is-idle'
-    narratorBadge = 'Paused'
-    narratorText = `Paused at Epoch ${epoch} (${Math.round(accuracy * 100)}% accuracy, Loss ${loss.toFixed(3)}). Press Train to keep learning, or hover/click the 2D map to inspect any point through the neurons.`
+    rafRef.current = window.requestAnimationFrame(tick)
+    return () => {
+      active = false
+      if (rafRef.current) window.cancelAnimationFrame(rafRef.current)
+    }
+  }, [isPlaying, runSteps])
+
+  const handleMouseMove = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = Math.max(-1, Math.min(1, ((e.clientX - rect.left) / rect.width) * 2 - 1))
+    const y = Math.max(-1, Math.min(1, 1 - ((e.clientY - rect.top) / rect.height) * 2))
+    const pt = { x, y }
+    setProbe(pt)
+    setTrace(mlpRef.current.forward([x, y]))
   }
 
+  const isStuck = !hasHidden && epoch >= 24
+  const isSolved = hasHidden && epoch > 0 && loss < 0.05
+
   return (
-    <div className="lab-page">
-      {/* Stage Header */}
-      <header className="lab-header" style={{ '--stage-accent': stage?.color || '#6366f1' }}>
-        <div>
-          <div className="stage-card-badges">
-            <span
-              className="badge"
-              style={{
-                background: '#6366f11a',
-                color: '#6366f1',
-                border: '1px solid #6366f144',
-              }}
-            >
-              Stage 2 · {stage?.level || 'Beginner'}
-            </span>
-            <span className="badge badge-subtle">{stage?.ageBadge || 'Ages 8+'}</span>
-            <span className={`badge ${isDeepDive ? 'badge-deep' : 'badge-explorer'}`}>
-              {isDeepDive ? 'Deep-Dive Mode' : 'Explorer Mode'}
-            </span>
-            {isStageDone && (
-              <span className="badge badge-success">
-                <CheckCircle2 size={13} />
-                Completed
-              </span>
-            )}
-          </div>
-          <h1>{stage?.title || 'Layers & Boundaries'}</h1>
-          <p className="stage-card-subtitle">
-            {stage?.subtitle || 'Team up neurons to draw curved decision maps'}
-          </p>
+    <div className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${!hasHidden ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => switchArchitecture(false)}
+          >
+            1 Neuron (0 Hidden Layers)
+          </button>
+          <button
+            type="button"
+            className={`btn btn-sm ${hasHidden ? 'btn-primary' : 'btn-secondary'}`}
+            onClick={() => switchArchitecture(true)}
+          >
+            Team of 4 Hidden Neurons ✨
+          </button>
         </div>
 
-        <button
-          type="button"
-          className={`btn ${isStageDone ? 'btn-success' : 'btn-secondary'}`}
-          onClick={handleCompleteStage}
-        >
-          <CheckCircle2 size={16} />
-          <span>{isStageDone ? 'Stage 2 Completed' : 'Mark Stage 2 Complete'}</span>
-        </button>
-      </header>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            className={`btn btn-sm ${isPlaying ? 'btn-success' : 'btn-primary'}`}
+            onClick={() => {
+              playClick()
+              setIsPlaying((p) => !p)
+            }}
+          >
+            {isPlaying ? <Pause size={15} /> : <Play size={15} />}
+            <span>{isPlaying ? 'Pause' : 'Train'}</span>
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => switchArchitecture(hasHidden)}
+          >
+            <RotateCcw size={15} />
+            <span>Reset</span>
+          </button>
+        </div>
+      </div>
 
-      <div className="pg-layout">
-        {/* Progressive 4-Step Guided Workflow Bar + Story Card */}
-        <section className="lab-card pg-guided-card" aria-label="Progressive guided workflow">
-          <div className="pg-stepper-head">
-            <div className="pg-step-pills" role="tablist" aria-label="Guided discovery steps">
-              {GUIDED_STEPS.map((step) => {
-                const isActive = guidedStep === step.id
-                const isDone = completedSteps.has(step.id)
-                return (
-                  <button
-                    key={step.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={isActive}
-                    className={`pg-step-pill ${isActive ? 'is-active' : ''} ${isDone ? 'is-done' : ''}`}
-                    onClick={() => goToStep(step.id)}
-                  >
-                    <span className="pg-step-num">{isDone ? '✓' : step.id}</span>
-                    <span>{step.shortLabel}</span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {guidedStep < 4 && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={jumpToSandbox}
-              >
-                <Sparkles size={14} />
-                <span>Jump to Free Sandbox</span>
-              </button>
-            )}
+      {/* Live Narrator */}
+      <div className={`pg-narrator ${isStuck ? 'is-stuck' : isSolved ? 'is-solved' : isPlaying ? 'is-training' : 'is-idle'}`}>
+        <div className="pg-narrator-left">
+          <span className="pg-narrator-badge">
+            {isStuck ? 'Stuck!' : isSolved ? 'Cracked XOR!' : isPlaying ? 'Training' : 'Ready'}
+          </span>
+          <div className="pg-narrator-copy">
+            <span>
+              {isStuck
+                ? `After ${epoch} rounds, accuracy is trapped near ${Math.round(accuracy * 100)}%! One straight fence can never put opposite corners on the same side.`
+                : isSolved
+                  ? `Boom! The 4 hidden helper neurons teamed up to bend the boundary around all 4 corners (${Math.round(accuracy * 100)}% accuracy)!`
+                  : hasHidden
+                    ? 'Press Train to watch the 4 helper neurons bend the map around the XOR checkerboard.'
+                    : 'Press Train with 1 neuron first — see if a single straight fence can separate opposite corners!'}
+            </span>
           </div>
-
-          <div className="pg-story-box">
-            <div className="pg-story-title">{activeStepMeta.title}</div>
-            <p className="pg-story-text">
-              {isDeepDive ? activeStepMeta.deepStory : activeStepMeta.kidStory}
-            </p>
-            {isDeepDive && (
-              <div className="pg-formula-grid">
-                <div className="formula-box">
-                  Forward: z⁽ˡ⁾ = W⁽ˡ⁾a⁽ˡ⁻¹⁾ + b⁽ˡ⁾, &nbsp; a⁽ˡ⁾ = f(z⁽ˡ⁾)
-                </div>
-                <div className="formula-box">
-                  MSE Loss: L = (1/N) Σ (ŷᵢ − yᵢ)², &nbsp; θ ← θ − η∇L
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Top Control Bar: Training Controls (+ Dataset Selector in Step 4) */}
-        <section className="lab-card pg-toolbar" aria-label="Dataset and training controls">
-          <div className="pg-toolbar-top">
-            {showDatasetPicker ? (
-              <div className="pg-toolbar-group">
-                <span className="pg-group-label">Dataset</span>
-                <div className="pg-dataset-pills" role="group" aria-label="Choose dataset">
-                  {DATASET_OPTIONS.map((ds) => (
-                    <button
-                      key={ds.id}
-                      type="button"
-                      className={`pg-dataset-btn ${datasetType === ds.id ? 'is-active' : ''}`}
-                      onClick={() => handleSelectDataset(ds.id)}
-                      title={isDeepDive ? ds.deepDesc : ds.kidDesc}
-                    >
-                      <DatasetGlyph type={ds.id} />
-                      <span>{ds.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="pg-toolbar-group">
-                <span className="pg-group-label">Current Puzzle</span>
-                <span className="badge badge-subtle">
-                  <DatasetGlyph type={activeDatasetMeta.id} />
-                  <TermTip id={activeDatasetMeta.id}>{activeDatasetMeta.label}</TermTip>
-                </span>
-                <span className="badge badge-subtle">
-                  {hiddenSizes.length === 0
-                    ? '0 Hidden Layers (1 Neuron)'
-                    : `${hiddenSizes.length} Hidden Layer (${hiddenSizes.join(', ')} neurons)`}
-                </span>
-              </div>
-            )}
-
-            <div className="pg-toolbar-group">
-              <button
-                type="button"
-                className={`btn pg-play-btn ${isPlaying ? 'is-running' : 'btn-primary'}`}
-                onClick={handleTogglePlay}
-              >
-                {isPlaying ? <Pause size={16} /> : <Play size={16} />}
-                <span>{isPlaying ? 'Pause' : 'Train'}</span>
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={handleStep10}
-                title="Run 10 training epochs"
-              >
-                <StepForward size={15} />
-                <span>+10 Epochs</span>
-              </button>
-
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={handleResetWeights}
-                title="Reset network weights with a fresh random seed"
-              >
-                <RotateCcw size={15} />
-                <span>Reset Weights</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Immediate 1-line plain-English dataset explainer + clickable TermTips */}
-          {showDatasetPicker && (
-            <div className="pg-inline-explainer">
-              <span>
-                <TermTip id={activeDatasetMeta.id}>{activeDatasetMeta.label}</TermTip>:{' '}
-                {isDeepDive
-                  ? activeDatasetMeta.deepDesc
-                  : getGlossaryEntry(activeDatasetMeta.id)?.plain || activeDatasetMeta.kidDesc}
-              </span>
-              <span className="pg-term-chips" aria-label="Dataset glossary quick links">
-                <span>Compare:</span>
-                {DATASET_OPTIONS.filter((ds) => ds.id !== activeDatasetMeta.id).map((ds) => (
-                  <TermTip key={`tip-${ds.id}`} id={ds.id}>
-                    {ds.label}
-                  </TermTip>
-                ))}
-              </span>
-            </div>
-          )}
-        </section>
-
-        {/* Dynamic "What's Happening Right Now" Live Narrator Banner */}
-        <section
-          className={`pg-narrator ${narratorTone}`}
-          aria-live="polite"
-          aria-label="What is happening right now"
-        >
-          <div className="pg-narrator-left">
-            <span className="pg-narrator-badge">{narratorBadge}</span>
-            <div className="pg-narrator-copy">
-              <span>{narratorText}</span>
-              <span className="pg-narrator-probe">
-                Testing point{' '}
-                <strong className="font-mono">
-                  ({activeProbe.x.toFixed(2)}, {activeProbe.y.toFixed(2)})
-                </strong>{' '}
-                → AI predicts{' '}
-                <strong>
-                  {probePct}% {probeTeamLabel}
-                </strong>
-              </span>
-            </div>
-          </div>
-
-          {narratorCtaLabel && narratorNextStep !== null && (
-            <div className="pg-narrator-actions">
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                onClick={() => goToStep(narratorNextStep)}
-              >
-                <span>{narratorCtaLabel}</span>
-              </button>
-            </div>
-          )}
-        </section>
-
-        {/* Celebration Toast when a Mission is Solved */}
-        {recentCelebration && (
-          <div className="callout-kid" role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Trophy size={18} color="#0d9488" />
-              <span>
-                <strong>Awesome!</strong> You solved <strong>{recentCelebration}</strong> (Loss dropped below 0.05)!
-              </span>
-            </div>
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => setRecentCelebration(null)}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        {/* Main Workspace: 2D Decision Boundary Canvas + Live SVG Network Architecture */}
-        <section className="pg-workspace">
-          {/* Left Panel: 2D Decision Boundary + Live Metrics */}
-          <div className="lab-card pg-panel">
-            <div className="pg-panel-head">
-              <h2 className="pg-panel-title">
-                <Sparkles size={18} color="#6366f1" />
-                <span>
-                  2D <TermTip id="decision-boundary">Decision Boundary</TermTip> Map
-                </span>
-              </h2>
-              <span className="badge badge-subtle">
-                {activeDatasetMeta.label}
-              </span>
-            </div>
-
-            <div className="pg-canvas-wrap">
-              <canvas
-                ref={canvasRef}
-                width={CANVAS_SIZE}
-                height={CANVAS_SIZE}
-                className="pg-canvas"
-                onMouseMove={handleCanvasMouseMove}
-                onMouseLeave={handleCanvasMouseLeave}
-                onClick={handleCanvasClick}
-              />
-              {hoverProbe && (
-                <div className="pg-canvas-probe">
-                  ({hoverProbe.x.toFixed(2)}, {hoverProbe.y.toFixed(2)}) →{' '}
-                  {Math.round(hoverProbe.prob * 100)}% Teal {isPinned ? '· Click to move' : '· Click to pin'}
-                </div>
-              )}
-            </div>
-
-            {/* Explicit Visual Legend Pills for 2D Decision Map */}
-            <div className="pg-legend-pills" aria-label="2D map legend">
-              <span className="pg-legend-pill">
-                <span className="pg-dot-swatch pg-dot-teal" />
-                Teal Dot = Team A
-              </span>
-              <span className="pg-legend-pill">
-                <span className="pg-dot-swatch pg-dot-coral" />
-                Coral Dot = Team B
-              </span>
-              <span className="pg-legend-pill">
-                <span className="pg-swatch-shade" />
-                Shaded Area = AI’s Guess
-              </span>
-              <span className="pg-legend-pill">
-                <span className="pg-swatch-crosshair" />
-                Crosshair = Live Probe
-              </span>
-            </div>
-
-            {/* Live Epoch, Loss, Accuracy Metrics */}
-            <div className="pg-metrics-grid">
-              <div className="pg-metric-box">
-                <span className="pg-metric-label">
-                  <TermTip id="epoch">Epoch</TermTip>
-                </span>
-                <span className="pg-metric-val">{epoch}</span>
-              </div>
-              <div className="pg-metric-box">
-                <span className="pg-metric-label">
-                  <TermTip id="loss">{isDeepDive ? 'MSE Loss' : 'Loss'}</TermTip>
-                </span>
-                <span className={`pg-metric-val ${loss < LOSS_TARGET ? 'is-solved' : ''}`}>
-                  {loss.toFixed(4)}
-                </span>
-              </div>
-              <div className="pg-metric-box">
-                <span className="pg-metric-label">Accuracy</span>
-                <span className={`pg-metric-val ${accuracy >= 0.96 ? 'is-solved' : ''}`}>
-                  {Math.round(accuracy * 100)}%
-                </span>
-              </div>
-            </div>
-
-            {/* Mini SVG Loss Sparkline */}
-            <div className="pg-sparkline-box">
-              <div className="pg-sparkline-head">
-                <span>{isDeepDive ? 'Loss Trajectory (MSE)' : 'Learning Curve (Lower is Better)'}</span>
-                <span>{loss < LOSS_TARGET ? 'Solved!' : 'Target < 0.05'}</span>
-              </div>
-              <LossSparkline history={lossHistory} />
-            </div>
-          </div>
-
-          {/* Right Panel: Live Network Architecture Diagram & Builder */}
-          <div className="lab-card pg-panel">
-            <div className="pg-panel-head">
-              <h2 className="pg-panel-title">
-                <Layers size={18} color="#6366f1" />
-                <span>Network Brain Builder</span>
-              </h2>
-              <span className="badge badge-subtle">
-                <Cpu size={13} />
-                {isDeepDive
-                  ? `${snapshot.layerSizes.join('–')} · ${totalParams} params`
-                  : `${hiddenSizes.length} Hidden ${hiddenSizes.length === 1 ? 'Layer' : 'Layers'}`}
-              </span>
-            </div>
-
-            {/* Add / Remove Hidden Layers (Unlocked from Step 3 onward) */}
-            {showLayerControls && (
-              <div className="pg-arch-controls">
-                <div className="pg-layer-stepper">
-                  <span className="pg-group-label">
-                    <TermTip id="hidden-layer">Hidden Layers</TermTip>
-                  </span>
-                  <button
-                    type="button"
-                    className="pg-icon-btn"
-                    onClick={handleRemoveLayer}
-                    disabled={hiddenSizes.length <= 0}
-                    aria-label="Remove hidden layer"
-                  >
-                    <Minus size={15} />
-                  </button>
-                  <strong className="font-mono">{hiddenSizes.length}</strong>
-                  <button
-                    type="button"
-                    className="pg-icon-btn"
-                    onClick={handleAddLayer}
-                    disabled={hiddenSizes.length >= 3}
-                    aria-label="Add hidden layer"
-                  >
-                    <Plus size={15} />
-                  </button>
-                </div>
-
-                <span className="pg-helper-note">
-                  {hiddenSizes.length === 0
-                    ? 'Direct 2 → 1 neuron (straight line only)'
-                    : 'Click + / − below to add or remove helper neurons'}
-                </span>
-              </div>
-            )}
-
-            {/* Live Signal Probe Banner */}
-            <div className="pg-probe-banner">
-              <div className="pg-probe-banner-main">
-                <strong>Live Signal Probe:</strong>
-                <span className="font-mono">
-                  ({activeProbe.x.toFixed(2)}, {activeProbe.y.toFixed(2)})
-                </span>
-                <span>→</span>
-                <span
-                  className={`pg-probe-pill ${probeTrace.output >= 0.5 ? 'is-teal' : 'is-coral'}`}
-                >
-                  ŷ = {Math.round(probeTrace.output * 100)}%{' '}
-                  {probeTrace.output >= 0.5 ? 'Teal' : 'Coral'}
-                </span>
-                <span>— hover or click the 2D map to test any point through the neurons!</span>
-              </div>
-              {isPinned && (
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={handleUnpinProbe}
-                >
-                  Unpin Probe
-                </button>
-              )}
-            </div>
-
-            {/* Live SVG Architecture Diagram */}
-            <div className="pg-svg-stage">
-              <NetworkDiagramSVG
-                snapshot={snapshot}
-                activations={probeTrace.activations}
-                isDeepDive={isDeepDive}
-              />
-
-              {/* Per-Layer Neuron Steppers (Step 3+) */}
-              {showLayerControls && (
-                <div className="pg-neuron-steppers">
-                  {hiddenSizes.length === 0 ? (
-                    <span className="pg-helper-note">
-                      0 hidden layers: inputs connect directly to the output neuron (only straight lines possible!).
-                    </span>
-                  ) : (
-                    hiddenSizes.map((count, idx) => (
-                      <div key={`layer-ctrl-${idx}`} className="pg-hidden-chip">
-                        <span>H{idx + 1}:</span>
-                        <button
-                          type="button"
-                          className="pg-mini-step"
-                          onClick={() => handleAdjustNeurons(idx, -1)}
-                          disabled={count <= 1}
-                          aria-label={`Remove neuron from hidden layer ${idx + 1}`}
-                        >
-                          −
-                        </button>
-                        <span className="font-mono">{count}</span>
-                        <button
-                          type="button"
-                          className="pg-mini-step"
-                          onClick={() => handleAdjustNeurons(idx, 1)}
-                          disabled={count >= 6}
-                          aria-label={`Add neuron to hidden layer ${idx + 1}`}
-                        >
-                          +
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Explicit Visual Legend Pills for SVG Network Diagram */}
-            <div className="pg-legend-pills" aria-label="Network diagram legend">
-              <span className="pg-legend-pill">
-                <span className="pg-line-swatch pg-line-pos" style={{ marginRight: 0 }} />
-                Teal Line = Positive Vote (+)
-              </span>
-              <span className="pg-legend-pill">
-                <span className="pg-line-swatch pg-line-neg" style={{ marginRight: 0 }} />
-                Coral Line = Negative Vote (−)
-              </span>
-              <span className="pg-legend-pill">
-                <span className="pg-swatch-node-glow" />
-                Bright Node = Strongly Firing
-              </span>
-            </div>
-
-            {/* Activation & Learning Rate Controls (Unlocked in Step 4: Full Playground) */}
-            {showAdvancedHyper && (
-              <div className="pg-hyper-grid">
-                <div className="pg-hyper-box">
-                  <div className="pg-hyper-head">
-                    <span>
-                      <TermTip id="activation">Activation Function</TermTip>
-                    </span>
-                    <span style={{ display: 'inline-flex', gap: 6, fontSize: '0.76rem' }}>
-                      <TermTip id="tanh">Tanh</TermTip>
-                      <TermTip id="relu">ReLU</TermTip>
-                      <TermTip id="sigmoid">Sigmoid</TermTip>
-                    </span>
-                  </div>
-                  <div className="pg-act-pills" role="group" aria-label="Choose activation function">
-                    {Object.keys(ACTIVATION_INFO).map((actKey) => (
-                      <button
-                        key={actKey}
-                        type="button"
-                        className={`pg-act-btn ${activation === actKey ? 'is-active' : ''}`}
-                        onClick={() => handleSelectActivation(actKey)}
-                      >
-                        {ACTIVATION_INFO[actKey].label}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="pg-helper-note">
-                    <strong>{ACTIVATION_INFO[activation].label}:</strong>{' '}
-                    {isDeepDive ? ACTIVATION_INFO[activation].deep : ACTIVATION_INFO[activation].kid}
-                  </p>
-                </div>
-
-                <div className="pg-hyper-box">
-                  <div className="pg-hyper-head">
-                    <label htmlFor="pg-lr-slider">
-                      <TermTip id="learning-rate">
-                        {isDeepDive ? 'Learning Rate (η)' : 'Learning Rate'}
-                      </TermTip>
-                    </label>
-                    <span className="font-mono">{learningRate.toFixed(2)}</span>
-                  </div>
-                  <input
-                    id="pg-lr-slider"
-                    type="range"
-                    className="pg-slider"
-                    min="0.02"
-                    max="1.2"
-                    step="0.02"
-                    value={learningRate}
-                    onChange={(e) => setLearningRate(Number(e.target.value))}
-                  />
-                  <p className="pg-helper-note">
-                    {isDeepDive
-                      ? 'Scales gradient descent steps Δθ = −η∇L. Too small converges slowly; too large oscillates.'
-                      : 'Bigger steps learn faster, but too fast can make the network bounce past the answer!'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* Kid-Friendly Experiment Missions (Unlocked in Step 4: Full Playground) */}
-        {showMissions && (
-          <section className="lab-card pg-missions-card" aria-label="Experiment Missions">
-            <div className="pg-panel-head">
-              <h2 className="pg-panel-title">
-                <Trophy size={18} color="#f59e0b" />
-                <span>Experiment Missions</span>
-              </h2>
-              <span className="badge badge-success">
-                {solvedMissions.size} / {MISSIONS.length} Solved
-              </span>
-            </div>
-
-            <div className="pg-missions-grid">
-              {MISSIONS.map((mission) => {
-                const isSolved = solvedMissions.has(mission.id)
-                const isCurrent = datasetType === mission.dataset
-
-                return (
-                  <div
-                    key={mission.id}
-                    className={`pg-mission-item ${isSolved ? 'is-solved' : isCurrent ? 'is-active' : ''}`}
-                  >
-                    <div className="pg-mission-top">
-                      <div className="pg-mission-title">{mission.title}</div>
-                      {isSolved ? (
-                        <span className="badge badge-success">
-                          <CheckCircle2 size={12} />
-                          Solved!
-                        </span>
-                      ) : (
-                        <span className="badge badge-subtle">
-                          {isCurrent ? 'Active' : 'Ready'}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="pg-mission-desc">
-                      {isDeepDive ? mission.deepDesc : mission.kidDesc}
-                    </p>
-
-                    <div className="pg-mission-actions">
-                      <span className="pg-mission-goal">{mission.goalLabel}</span>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
-                          onClick={() => applyPreset(mission.preset)}
-                        >
-                          {mission.id === 'xor' ? 'Try 1-Neuron' : 'Load Mission'}
-                        </button>
-                        {mission.boostPreset && (
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            onClick={() => applyPreset(mission.boostPreset)}
-                          >
-                            Try 4 Neurons
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
+        </div>
+        {isStuck && (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => switchArchitecture(true)}
+          >
+            Add 4 Hidden Neurons →
+          </button>
         )}
       </div>
 
-      {/* Footer Navigation */}
-      <nav className="lab-footer-nav" aria-label="Stage navigation">
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => navigate(prevStage ? prevStage.route : '/')}
-        >
-          <ArrowLeft size={16} />
-          <span>{prevStage ? `Stage ${prevStage.id}: ${prevStage.title}` : 'Back to Pathway'}</span>
-        </button>
+      <div className="bp-grid" style={{ alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <canvas
+            ref={canvasRef}
+            width={CANVAS_SIZE}
+            height={CANVAS_SIZE}
+            onMouseMove={handleMouseMove}
+            style={{
+              width: '100%',
+              maxWidth: 280,
+              aspectRatio: '1 / 1',
+              borderRadius: 14,
+              border: '2px solid var(--border-subtle)',
+              cursor: 'crosshair',
+            }}
+          />
+          <div className="bp-stat-grid" style={{ width: '100%', maxWidth: 280 }}>
+            <div className="bp-stat">
+              <div className="bp-stat-label">Rounds</div>
+              <div className="bp-stat-val">{epoch}</div>
+            </div>
+            <div className="bp-stat">
+              <div className="bp-stat-label">Loss</div>
+              <div className="bp-stat-val" style={{ color: loss < 0.05 ? '#059669' : '#dc2626' }}>
+                {loss.toFixed(3)}
+              </div>
+            </div>
+            <div className="bp-stat">
+              <div className="bp-stat-label">Accuracy</div>
+              <div className="bp-stat-val">{Math.round(accuracy * 100)}%</div>
+            </div>
+          </div>
+        </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          {!isStageDone && (
-            <button
-              type="button"
-              className="btn btn-success"
-              onClick={handleCompleteStage}
-            >
-              <CheckCircle2 size={16} />
-              <span>Mark Stage 2 Complete</span>
-            </button>
-          )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <MiniNetworkSvg snapshot={snapshot} activations={trace.activations} />
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+            Hover over the 2D map to see which neurons light up! Blue lines = positive votes, coral = negative votes.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Demo 3B: Backpropagation Time-Machine (4-step plain-English trace)
+ */
+function BackpropTimeMachine() {
+  const [params, setParams] = useState(INITIAL_BP_NET)
+  const [activeStep, setActiveStep] = useState(1)
+  const [round, setRound] = useState(1)
+  const lr = 1.2
+
+  const trace = useMemo(
+    () => traceBackpropStep(params.x, params.target, params.w1, params.b1, params.w2, params.b2, lr),
+    [params],
+  )
+
+  const applySingleUpdate = () => {
+    playStep()
+    setParams((prev) => ({ ...prev, ...trace.updatedWeights }))
+    setRound((r) => r + 1)
+    setActiveStep(1)
+  }
+
+  const runFiveRounds = () => {
+    playStep()
+    setParams((prev) => {
+      let curr = { ...prev }
+      for (let i = 0; i < 5; i += 1) {
+        const res = traceBackpropStep(curr.x, curr.target, curr.w1, curr.b1, curr.w2, curr.b2, lr)
+        curr = { ...curr, ...res.updatedWeights }
+      }
+      return curr
+    })
+    setRound((r) => r + 5)
+    setActiveStep(4)
+  }
+
+  const resetNet = () => {
+    playClick()
+    setParams(INITIAL_BP_NET)
+    setRound(1)
+    setActiveStep(1)
+  }
+
+  const isForward = activeStep === 1
+  const isBackward = activeStep === 3
+  const stepMeta = [
+    { num: 1, title: 'Forward Guess', sub: 'Left → Right' },
+    { num: 2, title: 'Measure Mistake', sub: 'Compare vs Goal' },
+    { num: 3, title: 'Blame Game', sub: 'Right → Left', backward: true },
+    { num: 4, title: 'Nudge Weights', sub: 'Shrink Error!' },
+  ]
+
+  return (
+    <div className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="tm-steps-bar" role="tablist" aria-label="Backpropagation 4-step trace">
+        {stepMeta.map((s) => (
           <button
+            key={s.num}
             type="button"
-            className="btn btn-primary"
-            onClick={() => navigate(nextStage ? nextStage.route : '/stage/3')}
+            role="tab"
+            aria-selected={activeStep === s.num}
+            className={`tm-step-btn ${s.backward ? 'is-backward' : ''} ${activeStep === s.num ? 'is-active' : ''}`}
+            onClick={() => {
+              playClick()
+              setActiveStep(s.num)
+            }}
           >
-            <span>Next: Stage 3 →</span>
-            <ArrowRight size={16} />
+            <span className="tm-step-num">Step {s.num}</span>
+            <span className="tm-step-title">{s.title}</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.sub}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="tm-svg-wrap">
+        <svg viewBox="0 0 560 210" style={{ width: '100%', height: 'auto', display: 'block' }} role="img" aria-label="Backpropagation signal flow">
+          <line
+            x1="96" y1="95" x2="236" y2="95"
+            stroke={isBackward ? '#ef4444' : isForward ? '#0ea5e9' : '#64748b'}
+            strokeWidth={isForward || isBackward ? 5 : 3}
+            strokeLinecap="round"
+            className={isForward ? 'tm-pulse-forward' : isBackward ? 'tm-pulse-backward' : undefined}
+          />
+          <g transform="translate(166, 65)">
+            <rect x="-42" y="-13" width="84" height="26" rx="13" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.5" />
+            <text x="0" y="4" textAnchor="middle" fontSize="11.5" fontWeight="700" fontFamily="monospace" fill="#0f172a">
+              w₁={params.w1.toFixed(2)}
+            </text>
+          </g>
+
+          <line
+            x1="316" y1="95" x2="436" y2="95"
+            stroke={isBackward ? '#ef4444' : isForward ? '#0ea5e9' : '#64748b'}
+            strokeWidth={isForward || isBackward ? 5 : 3}
+            strokeLinecap="round"
+            className={isForward ? 'tm-pulse-forward' : isBackward ? 'tm-pulse-backward' : undefined}
+          />
+          <g transform="translate(376, 65)">
+            <rect x="-42" y="-13" width="84" height="26" rx="13" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.5" />
+            <text x="0" y="4" textAnchor="middle" fontSize="11.5" fontWeight="700" fontFamily="monospace" fill="#0f172a">
+              w₂={params.w2.toFixed(2)}
+            </text>
+          </g>
+
+          <g transform="translate(60, 95)">
+            <circle r="34" fill="#e0f2fe" stroke="#0284c7" strokeWidth="2.5" />
+            <text x="0" y="-5" textAnchor="middle" fontSize="10.5" fontWeight="700" fill="#0369a1">Input</text>
+            <text x="0" y="13" textAnchor="middle" fontSize="14" fontWeight="800" fontFamily="monospace" fill="#0f172a">{params.x.toFixed(1)}</text>
+          </g>
+
+          <g transform="translate(276, 95)">
+            <circle r="38" fill={isBackward ? '#fef2f2' : '#eef2ff'} stroke={isBackward ? '#ef4444' : '#6366f1'} strokeWidth="3" />
+            <text x="0" y="-6" textAnchor="middle" fontSize="10.5" fontWeight="700" fill="#4338ca">Hidden</text>
+            <text x="0" y="13" textAnchor="middle" fontSize="14" fontWeight="800" fontFamily="monospace" fill="#0f172a">{trace.forward.h.toFixed(2)}</text>
+          </g>
+
+          <g transform="translate(478, 95)">
+            <circle r="40" fill={activeStep === 2 ? '#fef3c7' : '#ecfdf5'} stroke={activeStep === 2 ? '#f59e0b' : '#10b981'} strokeWidth="3" />
+            <text x="0" y="-6" textAnchor="middle" fontSize="10.5" fontWeight="700" fill="#065f46">Guess</text>
+            <text x="0" y="13" textAnchor="middle" fontSize="14" fontWeight="800" fontFamily="monospace" fill="#0f172a">{trace.forward.output.toFixed(2)}</text>
+          </g>
+
+          <rect x="115" y="162" width="330" height="30" rx="15" fill={isBackward ? '#fee2e2' : '#e0f2fe'} />
+          <text x="280" y="181" textAnchor="middle" fontSize="12" fontWeight="700" fill={isBackward ? '#b91c1c' : '#0369a1'}>
+            {activeStep === 1 && '→ Blue signal flows FORWARD to make a guess'}
+            {activeStep === 2 && `Goal = ${params.target.toFixed(2)}, Guess = ${trace.forward.output.toFixed(2)} (Loss = ${trace.forward.loss.toFixed(3)})`}
+            {activeStep === 3 && '← Red blame note flows BACKWARD to every weight'}
+            {activeStep === 4 && `Weights nudged! Loss drops: ${trace.forward.loss.toFixed(3)} → ${trace.nextLoss.toFixed(3)}`}
+          </text>
+        </svg>
+      </div>
+
+      <div className="callout-kid" style={{ fontSize: '0.92rem' }}>
+        {activeStep === 1 && <><strong>Step 1 (Forward Pass):</strong> The input <strong>{params.x}</strong> travels left-to-right through the hidden neuron to make a guess of <strong>{trace.forward.output.toFixed(3)}</strong>.</>}
+        {activeStep === 2 && <><strong>Step 2 (Measure Mistake):</strong> We wanted <strong>{params.target.toFixed(2)}</strong>, so our Mistake Score (Loss) is <strong>{trace.forward.loss.toFixed(4)}</strong>.</>}
+        {activeStep === 3 && <><strong>Step 3 (Pass Blame Backward):</strong> The error message travels <strong>right-to-left</strong> so even hidden weight <code>w₁</code> knows whether to nudge up or down!</>}
+        {activeStep === 4 && <><strong>Step 4 (Nudge Weights):</strong> Both weights take a tiny downhill step, shrinking Loss from <strong>{trace.forward.loss.toFixed(4)}</strong> down to <strong>{trace.nextLoss.toFixed(4)}</strong> (Round {round})!</>}
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={activeStep === 1} onClick={() => setActiveStep((s) => Math.max(1, s - 1))}>
+            ← Prev Step
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={activeStep === 4} onClick={() => setActiveStep((s) => Math.min(4, s + 1))}>
+            Next Step →
           </button>
         </div>
-      </nav>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button type="button" className="btn btn-primary btn-sm" onClick={applySingleUpdate}>
+            <StepForward size={15} />
+            <span>Apply 1 Round</span>
+          </button>
+          <button type="button" className="btn btn-success btn-sm" onClick={runFiveRounds}>
+            <FastForward size={15} />
+            <span>Train +5 Rounds</span>
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={resetNet}>
+            <RotateCcw size={15} />
+            <span>Reset</span>
+          </button>
+        </div>
+      </div>
+
+      <MathDrawer title="Peek at the Math: The Chain Rule in Backpropagation">
+        <p>
+          Backpropagation applies the calculus <strong>chain rule</strong> layer by layer from output back to input:
+        </p>
+        <div className="formula-box">
+          <div>δ₂ = (ŷ − target)·ŷ(1 − ŷ) = {trace.gradients.delta2.toFixed(4)}</div>
+          <div>∂L/∂w₂ = δ₂ · h = {trace.gradients.dL_dw2.toFixed(4)} &nbsp;→&nbsp; w₂: {params.w2.toFixed(3)} → {trace.updatedWeights.w2.toFixed(3)}</div>
+          <div>∂L/∂w₁ = δ₁ · x = {trace.gradients.dL_dw1.toFixed(4)} &nbsp;→&nbsp; w₁: {params.w1.toFixed(3)} → {trace.updatedWeights.w1.toFixed(3)}</div>
+        </div>
+      </MathDrawer>
     </div>
+  )
+}
+
+/**
+ * Optional Bonus Free Sandbox (tucked inside BonusDrawer at the bottom of Ch 3)
+ */
+function FreePlaygroundSandbox() {
+  const [datasetType, setDatasetType] = useState('circle')
+  const [hiddenSizes, setHiddenSizes] = useState([4])
+  const [activation, setActivation] = useState('tanh')
+  const [lr, setLr] = useState(0.35)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [epoch, setEpoch] = useState(0)
+
+  const dataset = useMemo(() => generateDataset(datasetType, 120, 42), [datasetType])
+  const initNet = useMemo(
+    () => createMLP({ inputSize: 2, hiddenSizes: [4], outputSize: 1, activation: 'tanh', learningRate: 0.35, seed: 42 }),
+    [],
+  )
+  const [loss, setLoss] = useState(() => initNet.evaluate(generateDataset('circle', 120, 42)).loss)
+  const [accuracy, setAccuracy] = useState(() => initNet.evaluate(generateDataset('circle', 120, 42)).accuracy)
+  const [snapshot, setSnapshot] = useState(() => initNet.getSnapshot())
+
+  const canvasRef = useRef(null)
+  const offscreenRef = useRef(null)
+  const mlpRef = useRef(initNet)
+  const rafRef = useRef(null)
+
+  const rebuild = useCallback((dsType, hSizes, act, nextLr) => {
+    setIsPlaying(false)
+    const ds = generateDataset(dsType, 120, 42)
+    const net = createMLP({ inputSize: 2, hiddenSizes: hSizes, outputSize: 1, activation: act, learningRate: nextLr, seed: 42 })
+    mlpRef.current = net
+    const ev = net.evaluate(ds)
+    setEpoch(0)
+    setLoss(ev.loss)
+    setAccuracy(ev.accuracy)
+    setSnapshot(net.getSnapshot())
+    drawDecisionCanvas(canvasRef.current, offscreenRef, net, ds)
+  }, [])
+
+  useEffect(() => {
+    drawDecisionCanvas(canvasRef.current, offscreenRef, mlpRef.current, dataset)
+  }, [dataset])
+
+  useEffect(() => {
+    if (!isPlaying) return undefined
+    let active = true
+    const tick = () => {
+      if (!active) return
+      const net = mlpRef.current
+      let res = null
+      for (let i = 0; i < 3; i++) res = net.trainEpoch(dataset)
+      if (res) {
+        setEpoch((e) => e + 3)
+        setLoss(res.loss)
+        setAccuracy(res.accuracy)
+        setSnapshot(net.getSnapshot())
+        drawDecisionCanvas(canvasRef.current, offscreenRef, net, dataset)
+      }
+      rafRef.current = window.requestAnimationFrame(tick)
+    }
+    rafRef.current = window.requestAnimationFrame(tick)
+    return () => {
+      active = false
+      if (rafRef.current) window.cancelAnimationFrame(rafRef.current)
+    }
+  }, [isPlaying, dataset])
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {['linear', 'circle', 'xor', 'spiral'].map((ds) => (
+            <button
+              key={ds}
+              type="button"
+              className={`btn btn-sm ${datasetType === ds ? 'btn-primary' : 'btn-secondary'}`}
+              onClick={() => {
+                setDatasetType(ds)
+                const nextH = ds === 'spiral' ? [6, 6] : ds === 'linear' ? [] : [4]
+                setHiddenSizes(nextH)
+                rebuild(ds, nextH, activation, lr)
+              }}
+            >
+              {ds.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button type="button" className={`btn btn-sm ${isPlaying ? 'btn-success' : 'btn-primary'}`} onClick={() => setIsPlaying((p) => !p)}>
+            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+            <span>{isPlaying ? 'Pause' : 'Train'}</span>
+          </button>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => rebuild(datasetType, hiddenSizes, activation, lr)}>
+            <RotateCcw size={14} />
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        <span style={{ fontSize: '0.82rem', fontWeight: 700 }}>Hidden Layers:</span>
+        <button
+          type="button"
+          className="pg-icon-btn"
+          disabled={hiddenSizes.length <= 0}
+          onClick={() => {
+            const next = hiddenSizes.slice(0, -1)
+            setHiddenSizes(next)
+            rebuild(datasetType, next, activation, lr)
+          }}
+        >
+          <Minus size={14} />
+        </button>
+        <strong className="font-mono">{hiddenSizes.length}</strong>
+        <button
+          type="button"
+          className="pg-icon-btn"
+          disabled={hiddenSizes.length >= 3}
+          onClick={() => {
+            const next = [...hiddenSizes, 4]
+            setHiddenSizes(next)
+            rebuild(datasetType, next, activation, lr)
+          }}
+        >
+          <Plus size={14} />
+        </button>
+
+        {hiddenSizes.map((cnt, idx) => (
+          <div key={idx} className="pg-hidden-chip">
+            <span>H{idx + 1}:</span>
+            <button
+              type="button"
+              className="pg-mini-step"
+              disabled={cnt <= 1}
+              onClick={() => {
+                const next = hiddenSizes.map((v, i) => (i === idx ? v - 1 : v))
+                setHiddenSizes(next)
+                rebuild(datasetType, next, activation, lr)
+              }}
+            >
+              −
+            </button>
+            <span className="font-mono">{cnt}</span>
+            <button
+              type="button"
+              className="pg-mini-step"
+              disabled={cnt >= 6}
+              onClick={() => {
+                const next = hiddenSizes.map((v, i) => (i === idx ? v + 1 : v))
+                setHiddenSizes(next)
+                rebuild(datasetType, next, activation, lr)
+              }}
+            >
+              +
+            </button>
+          </div>
+        ))}
+
+        <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
+          {['tanh', 'relu', 'sigmoid'].map((act) => (
+            <button
+              key={act}
+              type="button"
+              className={`btn btn-sm ${activation === act ? 'btn-primary' : 'btn-ghost'}`}
+              onClick={() => {
+                setActivation(act)
+                rebuild(datasetType, hiddenSizes, act, lr)
+              }}
+            >
+              {act}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="bp-grid" style={{ alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+          <canvas
+            ref={canvasRef}
+            width={CANVAS_SIZE}
+            height={CANVAS_SIZE}
+            style={{ width: '100%', maxWidth: 260, aspectRatio: '1 / 1', borderRadius: 12, border: '1px solid var(--border-subtle)' }}
+          />
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+            Epoch {epoch} · Loss {loss.toFixed(3)} · Accuracy {Math.round(accuracy * 100)}%
+          </div>
+        </div>
+        <MiniNetworkSvg snapshot={snapshot} />
+      </div>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: '0.82rem', fontWeight: 700 }}>
+        <span>Learning Rate: {lr.toFixed(2)}</span>
+        <input
+          type="range"
+          min="0.05"
+          max="1.0"
+          step="0.05"
+          value={lr}
+          onChange={(e) => {
+            const v = Number(e.target.value)
+            setLr(v)
+            mlpRef.current.learningRate = v
+          }}
+        />
+      </label>
+    </div>
+  )
+}
+
+export default function PlaygroundLab() {
+  return (
+    <BookChapter
+      chapterId={3}
+      recapFromPrev="In Chapter 2, one neuron learned to draw a straight fence by sliding down Loss Mountain."
+      cliffhangerTitle="Great with dots — but what about real pictures?"
+      cliffhangerText="Hidden layers and backpropagation can bend around circles, checkerboards, and spirals. But a photo isn't 2 coordinates — it's thousands of tiny pixels! Let's see how computers spot shapes and read handwriting in Chapter 4."
+    >
+      {/* Beat 1: The XOR Trap + Hidden Layer Breakthrough */}
+      <BookSection num="1" title="The 1969 XOR Trap — And How Hidden Layers Escape It" id="ch3-xor">
+        <p className="book-prose">
+          Look at the checkerboard below (called <TermTip id="xor">XOR</TermTip>): opposite corners
+          belong to the same team! Try pressing <strong>Train</strong> with 1 neuron first. Because
+          one neuron can only draw <strong>one straight fence</strong>, it gets stuck near 50%!
+        </p>
+        <p className="book-prose">
+          Now switch to <strong>Team of 4 Hidden Neurons</strong>. Each helper in the{' '}
+          <TermTip id="hidden-layer">hidden layer</TermTip> draws its own simple fence, and the
+          final neuron combines their votes to curve around all four corners!
+        </p>
+
+        <XorBreakthroughDemo />
+      </BookSection>
+
+      {/* Beat 2: Backpropagation Time-Machine */}
+      <BookSection num="2" title="How Do Hidden Neurons Know How to Change?" id="ch3-backprop">
+        <p className="book-prose">
+          There’s one mystery left: only the <em>final</em> output neuron sees the right answer.
+          So how do the middle helper neurons know which way to nudge their weights?
+        </p>
+        <p className="book-prose">
+          The 1986 breakthrough called <TermTip id="backprop">Backpropagation</TermTip> passes a
+          &ldquo;blame note&rdquo; <strong>backward</strong> from the output to every hidden weight.
+          Step through one full learning round below:
+        </p>
+
+        <BackpropTimeMachine />
+      </BookSection>
+
+      {/* Optional Free Playground */}
+      <BonusDrawer
+        title="Bonus: Free Neural Network Sandbox"
+        subtitle="Try Circles, Spirals, multiple hidden layers, ReLU/Sigmoid, and Learning Rate"
+      >
+        <FreePlaygroundSandbox />
+      </BonusDrawer>
+    </BookChapter>
   )
 }

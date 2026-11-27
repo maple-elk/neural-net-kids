@@ -1,224 +1,138 @@
 import {
   ArrowRight,
+  BookOpen,
   CheckCircle2,
   Clock,
   Compass,
   Eye,
-  FlaskConical,
   MessageSquare,
   Network,
-  Play,
   Sparkles,
   TrendingDown,
   Zap,
 } from 'lucide-react'
 import { useLearning } from '../context/LearningContext.jsx'
 import { PATHWAY_META, STAGES } from '../utils/pathwayLoader.js'
+import { playClick } from '../utils/sound.js'
 
 const ICON_MAP = {
   Zap,
-  Network,
   TrendingDown,
+  Network,
   Eye,
+  Compass,
   Sparkles,
   MessageSquare,
   Clock,
 }
 
-function StageIcon({ name, size = 20 }) {
+function StageIcon({ name, size = 18 }) {
   const Icon = ICON_MAP[name] || Sparkles
   return <Icon size={size} strokeWidth={2.2} />
 }
 
 export default function HomePathway() {
-  const { mode, isDeepDive, setMode, completedStages, navigate } = useLearning()
+  const { completedStages, navigate } = useLearning()
 
   const completedCount = completedStages.size
   const totalStages = STAGES.length
-  const progressPct = Math.round((completedCount / Math.max(totalStages, 1)) * 100)
-
   const nextStage = STAGES.find((stage) => !completedStages.has(stage.id)) || STAGES[0]
 
+  const openChapter = (route) => {
+    playClick()
+    navigate(route)
+  }
+
   return (
-    <div className="pathway-page">
-      <section className="pathway-hero" aria-label="Welcome">
-        <div>
-          <div className="pathway-hero-eyebrow">
-            <Sparkles size={14} />
-            <span>Interactive STEM Lab · 100% In-Browser</span>
-          </div>
-
-          <h1>
-            How Does AI <span className="pathway-hero-accent">Actually Think?</span>
-          </h1>
-
-          <p className="pathway-hero-lead">
-            {isDeepDive
-              ? 'Step through 7 interactive labs—from a single perceptron and backpropagation to convolutional filters, vector embeddings, self-attention, and an in-browser language model.'
-              : PATHWAY_META.tagline ||
-                'Play with 7 hands-on experiments that take you from one tiny artificial neuron all the way to training your own Mini-LLM!'}
-          </p>
-
-          <div className="pathway-hero-actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => navigate(nextStage.route)}
-            >
-              <Play size={16} />
-              <span>
-                {completedCount === 0
-                  ? 'Start Stage 1: Meet the Neuron'
-                  : completedCount === totalStages
-                    ? 'Replay Stage 1'
-                    : `Continue Stage ${nextStage.id}: ${nextStage.title}`}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setMode(isDeepDive ? 'explorer' : 'deep-dive')}
-            >
-              {isDeepDive ? <Compass size={16} /> : <FlaskConical size={16} />}
-              <span>
-                {isDeepDive ? 'Switch to Explorer Mode' : 'Try Deep-Dive Mode'}
-              </span>
-            </button>
-          </div>
+    <div className="book-cover-page">
+      {/* Book Cover Hero */}
+      <section className="book-cover-hero" aria-label="Welcome">
+        <div className="pathway-hero-eyebrow">
+          <BookOpen size={14} />
+          <span>Interactive Book · 8 Short Chapters · 100% In-Browser</span>
         </div>
 
-        <aside className="pathway-progress-card" aria-label="Your lab progress">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <strong style={{ fontFamily: 'var(--font-display)', fontSize: '1.08rem' }}>
-              Your Learning Pathway
-            </strong>
-            <span className={`badge ${isDeepDive ? 'badge-deep' : 'badge-explorer'}`}>
-              {mode === 'deep-dive' ? 'Deep-Dive Mode' : 'Explorer Mode'}
-            </span>
-          </div>
+        <h1>
+          How Does AI <span className="pathway-hero-accent">Actually Think?</span>
+        </h1>
 
-          <div className="progress-bar-track" role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100}>
-            <div className="progress-bar-fill" style={{ width: `${progressPct}%` }} />
-          </div>
+        <p className="book-cover-lead">
+          {PATHWAY_META.tagline} Each chapter teaches <strong>one big idea</strong> with a hands-on demo built right into the page — starting from zero.
+        </p>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.86rem', color: 'var(--text-secondary)' }}>
+        <div className="book-cover-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => openChapter(nextStage.route)}
+          >
+            <BookOpen size={17} />
             <span>
-              <strong>{completedCount}</strong> of <strong>{totalStages}</strong> labs completed
+              {completedCount === 0
+                ? 'Start Reading: Chapter 1'
+                : completedCount === totalStages
+                  ? 'Read Again from Chapter 1'
+                  : `Continue Chapter ${nextStage.id}: ${nextStage.title}`}
             </span>
-            <span className="font-mono" style={{ fontWeight: 600 }}>
-              {progressPct}%
-            </span>
-          </div>
+            <ArrowRight size={16} />
+          </button>
 
-          <div className={isDeepDive ? 'callout-deep' : 'callout-kid'} style={{ fontSize: '0.84rem', padding: '10px 12px' }}>
-            {isDeepDive
-              ? 'Deep-Dive is ON: labs reveal exact equations, weight matrices, gradients, and sampling math.'
-              : 'Explorer Mode is ON: clear everyday metaphors & hands-on puzzles. Toggle Deep-Dive anytime to peek at the math!'}
-          </div>
-        </aside>
+          {completedCount > 0 && (
+            <span className="badge badge-success" style={{ padding: '7px 14px', fontSize: '0.84rem' }}>
+              <CheckCircle2 size={14} />
+              {completedCount} of {totalStages} chapters read
+            </span>
+          )}
+        </div>
       </section>
 
-      <section aria-label="7-stage learning pathway">
-        <div className="pathway-section-head">
-          <div>
-            <h2>7 Escalating Labs</h2>
-            <p>Each stage builds directly on the last — or jump straight into any experiment.</p>
-          </div>
+      {/* Clean Table of Contents */}
+      <section className="book-toc-section" aria-label="Table of Contents">
+        <div className="book-toc-head">
+          <h2>Table of Contents</h2>
+          <p>Read straight through like a book — every chapter unlocks the puzzle that leads to the next.</p>
         </div>
 
-        <div className="pathway-track">
+        <ol className="book-toc-list">
           {STAGES.map((stage) => {
             const isDone = completedStages.has(stage.id)
-            const summary = isDeepDive ? stage.deepDiveSummary : stage.kidSummary
+            const isNext = nextStage.id === stage.id && completedCount > 0 && completedCount < totalStages
 
             return (
-              <article key={stage.id} className="pathway-row">
-                <div className="pathway-node-col">
-                  <div
-                    className="pathway-node"
-                    style={{ background: stage.color }}
-                    aria-hidden="true"
-                  >
-                    <StageIcon name={stage.icon} size={20} />
-                    <span className="pathway-node-num">0{stage.id}</span>
-                  </div>
-                </div>
-
-                <div
-                  className="stage-card"
+              <li key={stage.id}>
+                <button
+                  type="button"
+                  className={`book-toc-row ${isDone ? 'is-done' : ''} ${isNext ? 'is-next' : ''}`}
                   style={{ '--stage-accent': stage.color }}
+                  onClick={() => openChapter(stage.route)}
                 >
-                  <div className="stage-card-top">
-                    <div>
-                      <div className="stage-card-badges">
-                        <span
-                          className="badge"
-                          style={{
-                            background: `${stage.color}1a`,
-                            color: stage.color,
-                            border: `1px solid ${stage.color}44`,
-                          }}
-                        >
-                          Stage {stage.id} · {stage.level}
-                        </span>
-                        <span className="badge badge-subtle">{stage.ageBadge}</span>
-                        {isDone && (
-                          <span className="badge badge-success">
-                            <CheckCircle2 size={13} />
-                            Completed
-                          </span>
-                        )}
-                      </div>
+                  <span className="book-toc-num" style={{ background: stage.color }}>
+                    <StageIcon name={stage.icon} size={17} />
+                    <span>0{stage.id}</span>
+                  </span>
 
-                      <h3 className="stage-card-title">{stage.title}</h3>
-                      <p className="stage-card-subtitle">{stage.subtitle}</p>
-                    </div>
+                  <span className="book-toc-content">
+                    <span className="book-toc-part">{stage.part}</span>
+                    <span className="book-toc-title">{stage.title}</span>
+                    <span className="book-toc-sub">{stage.subtitle}</span>
+                  </span>
 
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      style={{
-                        background: stage.color,
-                        boxShadow: `0 4px 12px ${stage.color}40`,
-                      }}
-                      onClick={() => navigate(stage.route)}
-                    >
-                      <span>{isDone ? 'Revisit Lab' : 'Open Lab'}</span>
-                      <ArrowRight size={15} />
-                    </button>
-                  </div>
-
-                  <p className="stage-card-summary">{summary}</p>
-
-                  {Array.isArray(stage.interactiveHighlights) && stage.interactiveHighlights.length > 0 && (
-                    <div className="stage-highlights">
-                      {stage.interactiveHighlights.map((item) => (
-                        <span key={item} className="stage-highlight-chip">
-                          <Sparkles size={12} color={stage.color} />
-                          {item}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {Array.isArray(stage.keyConcepts) && stage.keyConcepts.length > 0 && (
-                    <div className="stage-card-footer">
-                      <div className="stage-concepts-preview">
-                        <span style={{ fontWeight: 600 }}>Key ideas:</span>
-                        {stage.keyConcepts.map((c) => (
-                          <span key={c.term} className="concept-tag">
-                            {c.term}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </article>
+                  <span className="book-toc-right">
+                    {isDone ? (
+                      <span className="badge badge-success">
+                        <CheckCircle2 size={13} />
+                        Read
+                      </span>
+                    ) : isNext ? (
+                      <span className="badge badge-deep">Up Next</span>
+                    ) : null}
+                    <ArrowRight size={17} className="book-toc-arrow" />
+                  </span>
+                </button>
+              </li>
             )
           })}
-        </div>
+        </ol>
       </section>
     </div>
   )

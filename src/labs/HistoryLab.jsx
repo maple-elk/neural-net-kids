@@ -1,558 +1,389 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
-import {
-  ArrowLeft,
-  ArrowRight,
-  Award,
-  CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Compass,
-  FlaskConical,
-  HelpCircle,
-  Lightbulb,
-  RotateCcw,
-  Sparkles,
-  Users,
-  XCircle,
-} from 'lucide-react'
+import { ArrowRight, Award, CheckCircle2, Lightbulb, RotateCcw, Sparkles, Users, XCircle } from 'lucide-react'
 import { HISTORY_ERAS, LLM_HISTORY_MILESTONES } from '../data/history.js'
 import { getStageById } from '../data/pathway.js'
 import { useLearning } from '../context/LearningContext.jsx'
 import { playClick, playSuccess } from '../utils/sound.js'
+import BookChapter, { BookSection, MathDrawer } from '../components/BookChapter.jsx'
 import TermTip from '../components/TermTip.jsx'
 import './HistoryLab.css'
+
+const AI_FAMILIES = [
+  {
+    id: 'mlp',
+    emoji: '🕸️',
+    name: 'Feedforward / MLP',
+    color: '#6366f1',
+    superpower: 'Finds curved patterns in tables, numbers, and 2D coordinates (Chapter 3).',
+    stageId: 3,
+  },
+  {
+    id: 'cnn',
+    emoji: '🔍',
+    name: 'Convolutional (CNN)',
+    color: '#10b981',
+    superpower: 'Slides tiny 3×3 lenses over pixel grids to spot edges and objects (Chapter 4).',
+    stageId: 4,
+  },
+  {
+    id: 'rnn',
+    emoji: '🔁',
+    name: 'Recurrent (RNN)',
+    color: '#f59e0b',
+    superpower: 'Loops its hidden memory forward one step at a time for sensor streams and audio.',
+    stageId: null,
+  },
+  {
+    id: 'transformer',
+    emoji: '✨',
+    name: 'Transformer',
+    color: '#ec4899',
+    superpower: 'Uses parallel Self-Attention spotlights to read and write whole pages (Chapters 6 & 7).',
+    stageId: 6,
+  },
+]
+
+const BRAIN_MATCH_QUIZ = [
+  {
+    id: 'b1',
+    emoji: '🛑',
+    prompt: 'Spot stop signs and bicycles in a live self-driving car camera.',
+    answer: 'cnn',
+    why: 'CNNs slide pattern-spotting filters across 2D image grids!',
+  },
+  {
+    id: 'b2',
+    emoji: '📖',
+    prompt: 'Write a 5-page adventure story while remembering characters from page 1.',
+    answer: 'transformer',
+    why: 'Transformers use Self-Attention spotlights to link words across long text!',
+  },
+  {
+    id: 'b3',
+    emoji: '🏡',
+    prompt: 'Estimate a house price from bedrooms, square feet, and neighborhood score.',
+    answer: 'mlp',
+    why: 'A Feedforward MLP combines fixed numeric clues through hidden layers!',
+  },
+]
 
 const HISTORY_QUIZ = [
   {
     id: 'q-xor',
-    question: 'Which famous 1969 puzzle proved that a single-layer perceptron needed hidden layers to level up?',
-    options: [
-      'The XOR checkerboard problem',
-      'Counting prime numbers',
-      'Sorting a deck of cards',
-      'Playing tic-tac-toe',
-    ],
+    question: 'Which 1969 puzzle proved that one straight line wasn’t enough, motivating hidden layers?',
+    options: ['The XOR checkerboard problem', 'Counting prime numbers', 'Sorting cards', 'Tic-tac-toe'],
     correctIndex: 0,
-    explanation:
-      'Minsky and Papert showed in 1969 that a single straight line cannot separate XOR — motivating multi-layer neural networks!',
+    explanation: 'Minsky and Papert proved one perceptron cannot separate XOR — unlocking multi-layer networks!',
   },
   {
     id: 'q-backprop',
-    question: 'What 1986 breakthrough let hidden layers learn by passing error signals backward from the output?',
-    options: [
-      'Tokenization',
-      'Backpropagation',
-      'Top-K sampling',
-      'Image cropping',
-    ],
+    question: 'What 1986 breakthrough let hidden layers learn by passing error notes backward?',
+    options: ['Tokenization', 'Backpropagation', 'Top-K sampling', 'Image cropping'],
     correctIndex: 1,
-    explanation:
-      'Backpropagation (popularized by Rumelhart, Hinton, and Williams) computes how much each weight contributed to the mistake so every layer can improve.',
+    explanation: 'Backpropagation computes how much each hidden weight contributed to the mistake so every layer improves.',
   },
   {
     id: 'q-transformer',
-    question: 'What does the "T" in GPT and ChatGPT stand for, named after the landmark 2017 paper?',
-    options: [
-      'Tokenizer',
-      'TensorFlow',
-      'Transformer',
-      'Time-Machine',
-    ],
+    question: 'What does the "T" in GPT and ChatGPT stand for, from the 2017 paper?',
+    options: ['Tokenizer', 'TensorFlow', 'Transformer', 'Time-Machine'],
     correctIndex: 2,
-    explanation:
-      'The 2017 paper "Attention Is All You Need" introduced the Transformer, letting AI read entire sentences in parallel using Self-Attention!',
+    explanation: '"Attention Is All You Need" (2017) introduced the Transformer, letting AI read whole sentences in parallel!',
   },
   {
     id: 'q-rlhf',
-    question: 'What technique helped turn raw next-word predictors into helpful, conversational AI assistants in 2022?',
-    options: [
-      'Drawing sharper edge filters',
-      'RLHF (Learning from Human Feedback)',
-      'Removing all hidden layers',
-      'Lowering the screen brightness',
-    ],
+    question: 'What technique helped turn raw next-word predictors into helpful chat assistants in 2022?',
+    options: ['Sharper edge filters', 'RLHF (Human Feedback)', 'Removing hidden layers', 'Lowering screen brightness'],
     correctIndex: 1,
-    explanation:
-      'RLHF (Reinforcement Learning from Human Feedback) uses human ratings to teach a language model to give clear, helpful, and polite answers.',
+    explanation: 'RLHF uses human ratings to align language models to be helpful, clear, and polite.',
   },
 ]
 
-function triggerCelebration(big = false) {
-  try {
-    confetti({
-      particleCount: big ? 95 : 55,
-      spread: big ? 80 : 62,
-      origin: { y: 0.7 },
-    })
-  } catch {
-    // Ignore confetti errors in non-canvas/test environments
-  }
-}
-
 export default function HistoryLab() {
-  const { isDeepDive, completedStages, markStageComplete, navigate } = useLearning()
-
-  const [selectedEra, setSelectedEra] = useState('all')
-  const [highlightedId, setHighlightedId] = useState(null)
-  const [expandedDeepIds, setExpandedDeepIds] = useState(() => new Set())
+  const { navigate } = useLearning()
+  const [brainAnswers, setBrainAnswers] = useState({})
   const [quizAnswers, setQuizAnswers] = useState({})
-
-  const isStageComplete = completedStages.has(7)
+  const celebratedRef = useRef(false)
 
   const eraById = useMemo(() => {
     const map = {}
-    for (const era of HISTORY_ERAS) {
-      map[era.id] = era
-    }
+    for (const era of HISTORY_ERAS) map[era.id] = era
     return map
   }, [])
 
-  const visibleMilestones = useMemo(() => {
-    if (selectedEra === 'all') return LLM_HISTORY_MILESTONES
-    return LLM_HISTORY_MILESTONES.filter((m) => m.eraId === selectedEra)
-  }, [selectedEra])
-
-  const activeEraObj = selectedEra === 'all' ? null : eraById[selectedEra]
-
-  const answeredCount = Object.keys(quizAnswers).length
-  const quizComplete = answeredCount === HISTORY_QUIZ.length
   const quizScore = useMemo(
-    () =>
-      HISTORY_QUIZ.reduce(
-        (sum, q) => (quizAnswers[q.id] === q.correctIndex ? sum + 1 : sum),
-        0,
-      ),
+    () => HISTORY_QUIZ.reduce((sum, q) => (quizAnswers[q.id] === q.correctIndex ? sum + 1 : sum), 0),
     [quizAnswers],
   )
+  const quizComplete = Object.keys(quizAnswers).length === HISTORY_QUIZ.length
 
-  const handleSelectEra = (eraId) => {
-    playClick()
-    setSelectedEra(eraId)
-  }
+  const handleQuizSelect = (qId, idx) => {
+    if (quizAnswers[qId] !== undefined) return
+    const next = { ...quizAnswers, [qId]: idx }
+    setQuizAnswers(next)
+    const q = HISTORY_QUIZ.find((item) => item.id === qId)
+    if (q && idx === q.correctIndex) playSuccess()
+    else playClick()
 
-  const handleToggleDeepDive = (milestoneId) => {
-    playClick()
-    setExpandedDeepIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(milestoneId)) {
-        next.delete(milestoneId)
-      } else {
-        next.add(milestoneId)
+    if (Object.keys(next).length === HISTORY_QUIZ.length && !celebratedRef.current) {
+      celebratedRef.current = true
+      try {
+        confetti({ particleCount: 80, spread: 70, origin: { y: 0.7 } })
+      } catch {
+        // Ignore in headless environments
       }
-      return next
-    })
-  }
-
-  const handleTimelineJump = (milestone) => {
-    playClick()
-    if (selectedEra !== 'all' && milestone.eraId !== selectedEra) {
-      setSelectedEra('all')
     }
-    setHighlightedId(milestone.id)
-    window.requestAnimationFrame(() => {
-      const el = document.getElementById(`milestone-${milestone.id}`)
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-    })
-  }
-
-  const handleQuizSelect = (questionId, optionIndex) => {
-    if (quizAnswers[questionId] !== undefined) return
-    const nextAnswers = { ...quizAnswers, [questionId]: optionIndex }
-    setQuizAnswers(nextAnswers)
-
-    const question = HISTORY_QUIZ.find((q) => q.id === questionId)
-    const isCorrect = question && optionIndex === question.correctIndex
-    const isFinished = Object.keys(nextAnswers).length === HISTORY_QUIZ.length
-
-    if (isFinished) {
-      const finalScore = HISTORY_QUIZ.reduce(
-        (sum, q) => (nextAnswers[q.id] === q.correctIndex ? sum + 1 : sum),
-        0,
-      )
-      playSuccess()
-      triggerCelebration(finalScore === HISTORY_QUIZ.length)
-    } else if (isCorrect) {
-      playSuccess()
-    } else {
-      playClick()
-    }
-  }
-
-  const handleQuizReset = () => {
-    playClick()
-    setQuizAnswers({})
-  }
-
-  const handleMarkComplete = () => {
-    markStageComplete(7)
-    playSuccess()
-    triggerCelebration(true)
   }
 
   return (
-    <div className="lab-page history-lab">
-      {/* Stage Header */}
-      <header className="lab-header">
-        <div className="history-header-meta">
-          <div className="history-header-badges">
-            <span className="badge history-stage-badge">
-              <Clock size={14} /> Stage 7 · Master Capstone
-            </span>
-            <span className={`badge ${isDeepDive ? 'badge-deep' : 'badge-explorer'}`}>
-              {isDeepDive ? 'Deep-Dive History Mode' : 'Explorer Story Mode'}
-            </span>
-            {isStageComplete && (
-              <span className="badge badge-success">
-                <CheckCircle2 size={14} /> Completed
-              </span>
-            )}
-          </div>
-          <h1 className="history-header-title">The Story of AI &amp; LLMs (1943–2026)</h1>
-          <p className="history-header-lead">
-            {isDeepDive ? (
-              <>
-                Trace 80+ years of breakthroughs — from the early{' '}
-                <TermTip id="perceptron">perceptron</TermTip> and{' '}
-                <TermTip id="backprop">backpropagation</TermTip> to{' '}
-                <TermTip id="transformer">Transformers</TermTip>,{' '}
-                <TermTip id="rlhf">RLHF</TermTip>, and modern reasoning systems.
-              </>
-            ) : (
-              <>
-                Travel through time to see how one tiny{' '}
-                <TermTip id="perceptron">perceptron</TermTip> from 1943 grew through{' '}
-                <TermTip id="backprop">backpropagation</TermTip>,{' '}
-                <TermTip id="transformer">Transformers</TermTip>, and{' '}
-                <TermTip id="rlhf">RLHF</TermTip> into today’s smart chatbots!
-              </>
-            )}
-          </p>
-        </div>
+    <BookChapter
+      chapterId={8}
+      recapFromPrev="You’ve built and played with every core piece of modern AI — neurons, gradient descent, hidden layers, vision filters, meaning maps, self-attention, and next-word generation."
+      cliffhangerTitle="🎉 Congratulations — You’ve Read the Whole Book!"
+      cliffhangerText="You now understand the real building blocks behind modern AI — from a single weighted switch to Large Language Models. Return to the Table of Contents anytime to replay a demo!"
+    >
+      {/* Beat 1: The 4 Families of AI Brains */}
+      <BookSection num="1" title="The 4 Families of AI Brains" id="ch8-zoo">
+        <p className="book-prose">
+          Not all neural networks are wired the same way! Every demo you tried belongs to one of
+          four famous architecture families:
+        </p>
 
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          onClick={() => navigate('/')}
-        >
-          <ArrowLeft size={16} /> Back to Pathway
-        </button>
-      </header>
-
-      {/* Era Filter Pills + Interactive 1943–2026 Visual Timeline */}
-      <section className="lab-card history-controls-card" aria-label="Timeline controls">
-        <div className="era-filter-row" role="tablist" aria-label="Filter milestones by era">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={selectedEra === 'all'}
-            className={`era-pill ${selectedEra === 'all' ? 'is-active' : ''}`}
-            style={{ '--era-color': '#0f172a' }}
-            onClick={() => handleSelectEra('all')}
-          >
-            <Compass size={15} />
-            <span>All Eras</span>
-            <span className="era-count">({LLM_HISTORY_MILESTONES.length})</span>
-          </button>
-
-          {HISTORY_ERAS.map((era) => {
-            const count = LLM_HISTORY_MILESTONES.filter((m) => m.eraId === era.id).length
-            const active = selectedEra === era.id
-            return (
-              <button
-                key={era.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                className={`era-pill ${active ? 'is-active' : ''}`}
-                style={{ '--era-color': era.color }}
-                onClick={() => handleSelectEra(era.id)}
-              >
-                <span className="era-dot" aria-hidden="true" />
-                <span>{era.title}</span>
-                <span className="era-count">({count})</span>
-              </button>
-            )
-          })}
-        </div>
-
-        {activeEraObj && (
-          <div
-            className="era-summary-banner"
-            style={{ '--era-color': activeEraObj.color }}
-          >
-            <div>
-              <strong>{activeEraObj.title}:</strong> {activeEraObj.summary}
+        <div className="lab-grid-2">
+          {AI_FAMILIES.map((fam) => (
+            <div
+              key={fam.id}
+              className="lab-card"
+              style={{
+                borderLeft: `4px solid ${fam.color}`,
+                padding: '16px 18px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <strong style={{ fontSize: '1.04rem' }}>
+                  {fam.emoji} <TermTip id={fam.id}>{fam.name}</TermTip>
+                </strong>
+                {fam.stageId && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      playClick()
+                      navigate(`/stage/${fam.stageId}`)
+                    }}
+                  >
+                    Ch {fam.stageId} →
+                  </button>
+                )}
+              </div>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>{fam.superpower}</p>
             </div>
-          </div>
-        )}
+          ))}
+        </div>
 
-        {/* Interactive 1943–2026 Node Strip */}
-        <div className="timeline-strip-wrap">
-          <div className="timeline-strip" aria-label="Jump to year on timeline">
-            {LLM_HISTORY_MILESTONES.map((milestone) => {
-              const era = eraById[milestone.eraId]
-              const isDimmed = selectedEra !== 'all' && milestone.eraId !== selectedEra
-              const isSelected = highlightedId === milestone.id
+        {/* Mini Match Game */}
+        <div className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h3 style={{ fontSize: '1.1rem' }}>🎮 Quick Match: Pick the Right Brain!</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {BRAIN_MATCH_QUIZ.map((q) => {
+              const picked = brainAnswers[q.id]
+              const isRight = picked === q.answer
               return (
-                <button
-                  key={milestone.id}
-                  type="button"
-                  className={`timeline-node-btn ${isDimmed ? 'is-dimmed' : ''} ${
-                    isSelected ? 'is-selected' : ''
-                  }`}
-                  style={{ '--era-color': era?.color || '#f97316' }}
-                  onClick={() => handleTimelineJump(milestone)}
-                  title={`${milestone.year}: ${milestone.title}`}
+                <div
+                  key={q.id}
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: 12,
+                    background: isRight ? '#ecfdf5' : 'var(--bg-subtle)',
+                    border: `1px solid ${isRight ? '#6ee7b7' : 'var(--border-subtle)'}`,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                  }}
                 >
-                  <span className="timeline-node-circle" aria-hidden="true">
-                    {milestone.emoji}
-                  </span>
-                  <span className="timeline-node-year">{milestone.year}</span>
-                </button>
+                  <strong style={{ fontSize: '0.92rem' }}>
+                    {q.emoji} {q.prompt}
+                  </strong>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {AI_FAMILIES.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        className={`btn btn-sm ${picked === opt.id ? (isRight ? 'btn-success' : 'btn-primary') : 'btn-secondary'}`}
+                        onClick={() => {
+                          setBrainAnswers((prev) => ({ ...prev, [q.id]: opt.id }))
+                          if (opt.id === q.answer) playSuccess()
+                          else playClick()
+                        }}
+                      >
+                        {opt.emoji} {opt.name}
+                      </button>
+                    ))}
+                  </div>
+                  {picked && (
+                    <span style={{ fontSize: '0.82rem', fontWeight: 600, color: isRight ? '#065f46' : '#b91c1c' }}>
+                      {isRight ? `✅ Spot on! ${q.why}` : 'Not quite — think about what kind of input this job uses and try again!'}
+                    </span>
+                  )}
+                </div>
               )
             })}
           </div>
         </div>
-      </section>
+      </BookSection>
 
-      {/* Chronological Milestone Cards */}
-      <section className="timeline-feed" aria-label="AI History Milestones">
-        {visibleMilestones.map((milestone) => {
-          const era = eraById[milestone.eraId]
-          const eraColor = era?.color || '#f97316'
-          const relatedStage = milestone.relatedStageId
-            ? getStageById(milestone.relatedStageId)
-            : null
-          const showDeepDive = isDeepDive || expandedDeepIds.has(milestone.id)
+      {/* Beat 2: The 80-Year Timeline */}
+      <BookSection num="2" title="80 Years of Breakthroughs (1943–Today)" id="ch8-timeline">
+        <p className="book-prose">
+          Modern AI didn’t appear overnight — it took over 80 years of breakthroughs, chilly AI
+          winters, and eureka moments. Every milestone below connects right back to a chapter you
+          just read:
+        </p>
 
-          return (
-            <article
-              key={milestone.id}
-              id={`milestone-${milestone.id}`}
-              className="milestone-row"
-              style={{ '--era-color': eraColor }}
-            >
-              <div className="milestone-marker" aria-hidden="true">
-                {milestone.emoji}
-              </div>
-
-              <div
-                className={`milestone-card ${
-                  highlightedId === milestone.id ? 'is-highlighted' : ''
-                }`}
-              >
-                <div className="milestone-top">
-                  <div className="milestone-title-group">
-                    <div className="milestone-meta-row">
-                      <span className="milestone-year-badge">{milestone.year}</span>
-                      {era && <span className="milestone-era-tag">{era.title}</span>}
-                    </div>
-                    <h2 className="milestone-title">
-                      <span aria-hidden="true">{milestone.emoji}</span>
-                      <span>{milestone.title}</span>
-                    </h2>
-                    <div className="milestone-people">
-                      <Users size={14} style={{ verticalAlign: '-2px', marginRight: 5 }} />
-                      {milestone.people}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Breakthrough Callout */}
-                <div className="milestone-breakthrough">
-                  <Sparkles size={18} style={{ flexShrink: 0, marginTop: 2 }} />
-                  <div>
-                    <strong>Big Breakthrough:</strong> {milestone.breakthrough}
-                  </div>
-                </div>
-
-                {/* Kid Story (Explorer Mode) */}
-                <div className="callout-kid">
-                  <div className="milestone-story-label">
-                    <Compass size={13} /> The Story
-                  </div>
-                  <p>{milestone.kidStory}</p>
-                </div>
-
-                {/* Deep-Dive Technical Card (always open in Deep-Dive mode, toggleable in Explorer mode) */}
-                {!isDeepDive && (
-                  <button
-                    type="button"
-                    className="milestone-deep-toggle"
-                    onClick={() => handleToggleDeepDive(milestone.id)}
-                    aria-expanded={showDeepDive}
-                  >
-                    <FlaskConical size={14} />
-                    <span>{showDeepDive ? 'Hide Deep-Dive Details' : 'Peek Under the Hood (Deep-Dive)'}</span>
-                    {showDeepDive ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                  </button>
-                )}
-
-                {showDeepDive && (
-                  <div className="callout-deep">
-                    <div className="milestone-story-label">
-                      <FlaskConical size={13} /> Technical Deep-Dive
-                    </div>
-                    <p>{milestone.deepDive}</p>
-                  </div>
-                )}
-
-                {/* Fun Fact */}
-                <div className="milestone-funfact">
-                  <Lightbulb size={17} style={{ flexShrink: 0, marginTop: 2, color: '#f59e0b' }} />
-                  <div>
-                    <strong>Fun Fact:</strong> {milestone.funFact}
-                  </div>
-                </div>
-
-                {/* Lab Link Footer */}
-                {milestone.relatedStageId && (
-                  <div className="milestone-footer">
-                    <span className="badge badge-subtle">
-                      Connected Lab: Stage {milestone.relatedStageId}
-                      {relatedStage ? ` · ${relatedStage.title}` : ''}
-                    </span>
-                    <button
-                      type="button"
-                      className="milestone-stage-btn"
-                      onClick={() => navigate(`/stage/${milestone.relatedStageId}`)}
-                    >
-                      <span>Try this concept in Stage {milestone.relatedStageId}</span>
-                      <ArrowRight size={15} />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </article>
-          )
-        })}
-      </section>
-
-      {/* 4-Question AI History Quick Quiz */}
-      <section className="lab-card history-quiz-card" aria-label="AI History Quick Quiz">
-        <div className="quiz-header">
-          <div>
-            <h2>
-              <HelpCircle size={22} color="#4f46e5" /> AI History Quick Quiz
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.94rem', marginTop: 4 }}>
-              Test your time-travel memory across 4 big AI breakthroughs!
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="quiz-score-pill">
-              <Award size={16} /> Score: {quizScore} / {HISTORY_QUIZ.length}
-            </span>
-            {answeredCount > 0 && (
-              <button type="button" className="btn btn-ghost btn-sm" onClick={handleQuizReset}>
-                <RotateCcw size={14} /> Reset
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="quiz-grid">
-          {HISTORY_QUIZ.map((q, qIdx) => {
-            const picked = quizAnswers[q.id]
-            const isAnswered = picked !== undefined
-            const isCorrect = picked === q.correctIndex
+        <div className="timeline-feed" aria-label="AI History Milestones">
+          {LLM_HISTORY_MILESTONES.map((milestone) => {
+            const era = eraById[milestone.eraId]
+            const eraColor = era?.color || '#f97316'
+            const relatedChapter = milestone.relatedStageId ? getStageById(milestone.relatedStageId) : null
 
             return (
-              <div key={q.id} className="quiz-question-box">
-                <span className="quiz-question-num">Question {qIdx + 1} of {HISTORY_QUIZ.length}</span>
-                <p className="quiz-question-text">{q.question}</p>
-
-                <div className="quiz-options">
-                  {q.options.map((opt, optIdx) => {
-                    let stateClass = ''
-                    if (isAnswered) {
-                      if (optIdx === q.correctIndex) stateClass = 'is-correct'
-                      else if (optIdx === picked) stateClass = 'is-wrong'
-                    }
-
-                    return (
-                      <button
-                        key={opt}
-                        type="button"
-                        className={`quiz-option-btn ${stateClass}`}
-                        disabled={isAnswered}
-                        onClick={() => handleQuizSelect(q.id, optIdx)}
-                      >
-                        <span>{opt}</span>
-                        {isAnswered && optIdx === q.correctIndex && (
-                          <CheckCircle2 size={17} color="#10b981" style={{ flexShrink: 0 }} />
-                        )}
-                        {isAnswered && optIdx === picked && optIdx !== q.correctIndex && (
-                          <XCircle size={17} color="#ef4444" style={{ flexShrink: 0 }} />
-                        )}
-                      </button>
-                    )
-                  })}
-                </div>
-
-                {isAnswered && (
-                  <div className={`quiz-feedback ${isCorrect ? 'is-correct' : 'is-wrong'}`}>
-                    <strong>{isCorrect ? 'Spot on! ' : 'Good try! '}</strong>
-                    {q.explanation}
+              <article
+                key={milestone.id}
+                className="milestone-row"
+                style={{ '--era-color': eraColor }}
+              >
+                <div className="milestone-marker" aria-hidden="true">{milestone.emoji}</div>
+                <div className="milestone-card">
+                  <div className="milestone-meta-row">
+                    <span className="milestone-year-badge">{milestone.year}</span>
+                    {era && <span className="milestone-era-tag">{era.title}</span>}
                   </div>
-                )}
-              </div>
+                  <h3 className="milestone-title" style={{ fontSize: '1.16rem' }}>
+                    {milestone.title}
+                  </h3>
+                  <div className="milestone-people">
+                    <Users size={13} style={{ verticalAlign: '-2px', marginRight: 5 }} />
+                    {milestone.people}
+                  </div>
+
+                  <p style={{ fontSize: '0.94rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+                    {milestone.kidStory}
+                  </p>
+
+                  <div className="milestone-funfact">
+                    <Lightbulb size={16} style={{ flexShrink: 0, marginTop: 2, color: '#f59e0b' }} />
+                    <div><strong>Fun Fact:</strong> {milestone.funFact}</div>
+                  </div>
+
+                  <MathDrawer title="Technical Note">
+                    <p>{milestone.deepDive}</p>
+                  </MathDrawer>
+
+                  {relatedChapter && (
+                    <div className="milestone-footer">
+                      <span className="badge badge-subtle">
+                        Chapter {relatedChapter.id} · {relatedChapter.title}
+                      </span>
+                      <button
+                        type="button"
+                        className="milestone-stage-btn"
+                        onClick={() => {
+                          playClick()
+                          navigate(relatedChapter.route)
+                        }}
+                      >
+                        <span>Revisit Ch {relatedChapter.id}</span>
+                        <ArrowRight size={14} />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </article>
             )
           })}
         </div>
+      </BookSection>
 
-        {quizComplete && (
-          <div className="quiz-complete-banner">
-            <div>
-              <h3 style={{ fontSize: '1.15rem', color: '#065f46' }}>
-                {quizScore === HISTORY_QUIZ.length
-                  ? '🎉 Perfect 4/4! You are an official AI Time Traveler!'
-                  : `🌟 Quiz Complete! You scored ${quizScore} out of ${HISTORY_QUIZ.length}!`}
-              </h3>
-              <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: 3 }}>
-                Ready to lock in your Stage 7 badge or revisit any interactive lab?
-              </p>
-            </div>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={handleQuizReset}>
-              <RotateCcw size={15} /> Play Again
-            </button>
+      {/* Beat 3: Final Recap Quiz */}
+      <BookSection num="3" title="Final Check: AI Time-Traveler Quiz" id="ch8-quiz">
+        <div className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <span className="quiz-score-pill">
+              <Award size={16} /> Score: {quizScore} / {HISTORY_QUIZ.length}
+            </span>
+            {Object.keys(quizAnswers).length > 0 && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  playClick()
+                  setQuizAnswers({})
+                  celebratedRef.current = false
+                }}
+              >
+                <RotateCcw size={14} /> Reset Quiz
+              </button>
+            )}
           </div>
-        )}
-      </section>
 
-      {/* Footer Navigation */}
-      <footer className="lab-footer-nav">
-        <button
-          type="button"
-          className="btn btn-secondary"
-          onClick={() => navigate('/stage/6')}
-        >
-          <ArrowLeft size={16} /> Stage 6: Build a Mini-LLM
-        </button>
+          <div className="quiz-grid">
+            {HISTORY_QUIZ.map((q, qIdx) => {
+              const picked = quizAnswers[q.id]
+              const isAnswered = picked !== undefined
+              const isCorrect = picked === q.correctIndex
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          <button
-            type="button"
-            className={`btn ${isStageComplete ? 'btn-secondary' : 'btn-success'}`}
-            onClick={handleMarkComplete}
-          >
-            <CheckCircle2 size={17} />
-            {isStageComplete ? 'Stage 7 Completed!' : 'Mark Stage 7 Complete'}
-          </button>
+              return (
+                <div key={q.id} className="quiz-question-box">
+                  <span className="quiz-question-num">Question {qIdx + 1} of {HISTORY_QUIZ.length}</span>
+                  <p className="quiz-question-text">{q.question}</p>
+                  <div className="quiz-options">
+                    {q.options.map((opt, optIdx) => {
+                      let stateClass = ''
+                      if (isAnswered) {
+                        if (optIdx === q.correctIndex) stateClass = 'is-correct'
+                        else if (optIdx === picked) stateClass = 'is-wrong'
+                      }
+                      return (
+                        <button
+                          key={opt}
+                          type="button"
+                          className={`quiz-option-btn ${stateClass}`}
+                          disabled={isAnswered}
+                          onClick={() => handleQuizSelect(q.id, optIdx)}
+                        >
+                          <span>{opt}</span>
+                          {isAnswered && optIdx === q.correctIndex && <CheckCircle2 size={16} color="#10b981" />}
+                          {isAnswered && optIdx === picked && optIdx !== q.correctIndex && <XCircle size={16} color="#ef4444" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {isAnswered && (
+                    <div className={`quiz-feedback ${isCorrect ? 'is-correct' : 'is-wrong'}`}>
+                      <strong>{isCorrect ? 'Spot on! ' : 'Good try! '}</strong>
+                      {q.explanation}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
 
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => navigate('/')}
-          >
-            Back to Learning Pathway <ArrowRight size={16} />
-          </button>
+          {quizComplete && (
+            <div className="book-takeaway" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Sparkles size={18} />
+              <strong>
+                {quizScore === HISTORY_QUIZ.length
+                  ? 'Perfect 4/4! You are an official Neural Net & LLM Explorer!'
+                  : `Nice work! You scored ${quizScore} out of ${HISTORY_QUIZ.length}!`}
+              </strong>
+            </div>
+          )}
         </div>
-      </footer>
-    </div>
+      </BookSection>
+    </BookChapter>
   )
 }

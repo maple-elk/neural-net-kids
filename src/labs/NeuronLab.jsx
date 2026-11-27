@@ -1,25 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import confetti from 'canvas-confetti'
-import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  Lightbulb,
-  Puzzle,
-  RotateCcw,
-  Sparkles,
-  Zap,
-} from 'lucide-react'
+import { CheckCircle2, Lightbulb, RotateCcw } from 'lucide-react'
 import {
   PERCEPTRON_CHALLENGES,
   PERCEPTRON_SCENARIOS,
   checkPerceptronChallenge,
   computePerceptron,
-  sigmoid,
 } from '../engine/perceptron.js'
-import { useLearning } from '../context/LearningContext.jsx'
-import { getStageById } from '../utils/pathwayLoader.js'
 import { playClick, playNeuronFire, playSuccess } from '../utils/sound.js'
+import BookChapter, { BookSection, MathDrawer } from '../components/BookChapter.jsx'
 import TermTip from '../components/TermTip.jsx'
 import './NeuronLab.css'
 
@@ -28,56 +17,10 @@ function formatSigned(val, decimals = 1) {
   return Number(val) > 0 ? `+${fixed}` : fixed
 }
 
-function ActivationMiniPlot({ activation, z, output }) {
-  const width = 220
-  const height = 96
-  const pad = 14
-  const mapX = (val) => pad + ((Math.max(-6, Math.min(6, val)) + 6) / 12) * (width - pad * 2)
-  const mapY = (val) => height - pad - val * (height - pad * 2)
-
-  let pathD = ''
-  if (activation === 'step') {
-    const x0 = mapX(-6)
-    const xm = mapX(0)
-    const x1 = mapX(6)
-    pathD = `M ${x0} ${mapY(0)} L ${xm} ${mapY(0)} L ${xm} ${mapY(1)} L ${x1} ${mapY(1)}`
-  } else {
-    const pts = []
-    for (let i = 0; i <= 48; i += 1) {
-      const zv = -6 + (12 * i) / 48
-      pts.push(`${i === 0 ? 'M' : 'L'} ${mapX(zv).toFixed(1)} ${mapY(sigmoid(zv)).toFixed(1)}`)
-    }
-    pathD = pts.join(' ')
-  }
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} width={width} height={height} aria-label="Activation curve">
-      <rect x="0" y="0" width={width} height={height} rx="10" fill="#0f172a" />
-      <line x1={pad} y1={mapY(0)} x2={width - pad} y2={mapY(0)} stroke="#334155" strokeWidth="1" />
-      <line x1={pad} y1={mapY(1)} x2={width - pad} y2={mapY(1)} stroke="#334155" strokeDasharray="3 3" strokeWidth="1" />
-      <line x1={mapX(0)} y1={pad} x2={mapX(0)} y2={height - pad} stroke="#475569" strokeDasharray="3 3" strokeWidth="1" />
-      <path d={pathD} fill="none" stroke="#38bdf8" strokeWidth="2.5" strokeLinecap="round" />
-      <circle cx={mapX(z)} cy={mapY(output)} r="5.5" fill="#f59e0b" stroke="#ffffff" strokeWidth="2" />
-      <text x={width - pad} y={pad + 8} textAnchor="end" fill="#94a3b8" fontSize="9" fontFamily="monospace">
-        {activation === 'step' ? 'step(z)' : 'σ(z)'}
-      </text>
-    </svg>
-  )
-}
-
-function NeuronDiagram({
-  inputs,
-  labels,
-  weights,
-  bias,
-  result,
-  activation,
-  onToggleInput,
-  isDeepDive,
-}) {
+function NeuronDiagram({ inputs, labels, weights, bias, result, onToggleInput }) {
   const count = inputs.length
   const svgW = 540
-  const svgH = Math.max(250, count * 68 + 46)
+  const svgH = Math.max(240, count * 64 + 44)
   const inputX = 94
   const somaX = 310
   const somaY = svgH / 2
@@ -85,8 +28,8 @@ function NeuronDiagram({
 
   const getInputY = (idx) => {
     if (count === 1) return somaY
-    const top = 46
-    const bottom = svgH - 54
+    const top = 44
+    const bottom = svgH - 52
     return top + (idx / (count - 1)) * (bottom - top)
   }
 
@@ -105,7 +48,6 @@ function NeuronDiagram({
           </radialGradient>
         </defs>
 
-        {/* Connection edges from inputs to soma */}
         {inputs.map((val, idx) => {
           const y = getInputY(idx)
           const w = weights[idx] ?? 0
@@ -157,7 +99,6 @@ function NeuronDiagram({
           )
         })}
 
-        {/* Output connection */}
         <line
           x1={somaX + 44}
           y1={somaY}
@@ -169,7 +110,6 @@ function NeuronDiagram({
           className={result.fired ? 'neuron-edge-active' : undefined}
         />
 
-        {/* Bias feeder from bottom */}
         <line
           x1={somaX}
           y1={svgH - 22}
@@ -194,7 +134,6 @@ function NeuronDiagram({
           </text>
         </g>
 
-        {/* Input nodes */}
         {inputs.map((val, idx) => {
           const y = getInputY(idx)
           const isOn = val > 0
@@ -227,13 +166,7 @@ function NeuronDiagram({
                 stroke={isOn ? '#10b981' : '#cbd5e1'}
                 strokeWidth="2"
               />
-              <text
-                x="22"
-                y={y - 3}
-                fontSize="11"
-                fontWeight="700"
-                fill="#0f172a"
-              >
+              <text x="22" y={y - 3} fontSize="11" fontWeight="700" fill="#0f172a">
                 {labels[idx].length > 14 ? `${labels[idx].slice(0, 13)}…` : labels[idx]}
               </text>
               <text
@@ -244,13 +177,12 @@ function NeuronDiagram({
                 fontWeight="700"
                 fill={isOn ? '#059669' : '#64748b'}
               >
-                x{idx + 1} = {val} {onToggleInput ? '(tap)' : ''}
+                {isOn ? 'ON (1)' : 'OFF (0)'} {onToggleInput ? '· tap' : ''}
               </text>
             </g>
           )
         })}
 
-        {/* Neuron Soma */}
         <g transform={`translate(${somaX}, ${somaY})`}>
           <circle
             r="44"
@@ -259,7 +191,7 @@ function NeuronDiagram({
             strokeWidth="3.5"
           />
           <text x="0" y="-10" textAnchor="middle" fontSize="11" fontWeight="700" fill="#64748b">
-            {isDeepDive ? 'Σ w·x + b' : 'Total Score'}
+            Total Score
           </text>
           <text
             x="0"
@@ -273,22 +205,15 @@ function NeuronDiagram({
             {formatSigned(result.weightedSum, 2)}
           </text>
           <text x="0" y="26" textAnchor="middle" fontSize="10" fontWeight="600" fill="#6366f1">
-            {activation === 'sigmoid' ? 'sigmoid' : 'step ≥ 0'}
+            fires at ≥ 0
           </text>
         </g>
 
-        {/* Output Bulb / Spark */}
         <g transform={`translate(${outX}, ${somaY})`}>
           {result.fired && (
             <>
               <circle r="52" fill="url(#bulbGlow)" />
-              <circle
-                r="40"
-                fill="none"
-                stroke="#f59e0b"
-                strokeWidth="2.5"
-                className="neuron-spark-ring"
-              />
+              <circle r="40" fill="none" stroke="#f59e0b" strokeWidth="2.5" className="neuron-spark-ring" />
             </>
           )}
           <circle
@@ -299,26 +224,24 @@ function NeuronDiagram({
           />
           <text
             x="0"
-            y="-4"
+            y="-3"
             textAnchor="middle"
             fontSize="15"
             fontWeight="800"
             fill={result.fired ? '#ffffff' : '#475569'}
           >
-            {result.fired ? 'FIRE!' : 'OFF'}
+            {result.fired ? 'YES!' : 'NO'}
           </text>
           <text
             x="0"
-            y="14"
+            y="15"
             textAnchor="middle"
             fontSize="11.5"
             fontWeight="700"
             fontFamily="var(--font-mono)"
             fill={result.fired ? '#fef3c7' : '#64748b'}
           >
-            {activation === 'sigmoid'
-              ? `${Math.round(result.output * 100)}%`
-              : `y = ${result.output}`}
+            out = {result.output}
           </text>
         </g>
       </svg>
@@ -326,452 +249,303 @@ function NeuronDiagram({
   )
 }
 
+const BOOK_PUZZLES = PERCEPTRON_CHALLENGES.filter((c) => c.id === 'and' || c.id === 'or')
+
 export default function NeuronLab() {
-  const { isDeepDive, completedStages, markStageComplete, navigate } = useLearning()
-  const stage = getStageById(1)
-
-  const [tab, setTab] = useState('sandbox')
-  const [activation, setActivation] = useState('step')
-
-  // Sandbox state
-  const [scenarioId, setScenarioId] = useState(PERCEPTRON_SCENARIOS[0].id)
-  const scenario = useMemo(
-    () => PERCEPTRON_SCENARIOS.find((s) => s.id === scenarioId) || PERCEPTRON_SCENARIOS[0],
-    [scenarioId],
-  )
+  // Demo 1A: Single relatable scenario ("Go to the Park?")
+  const scenario = PERCEPTRON_SCENARIOS[0]
   const [inputs, setInputs] = useState(() => scenario.inputs.map((i) => i.defaultValue))
   const [weights, setWeights] = useState(() => scenario.inputs.map((i) => i.defaultWeight))
   const [bias, setBias] = useState(() => scenario.bias)
 
-  // Challenge state
-  const [challengeId, setChallengeId] = useState(PERCEPTRON_CHALLENGES[0].id)
+  // Demo 1B: Wire a Logic Lock (AND / OR)
+  const [challengeId, setChallengeId] = useState('and')
   const challenge = useMemo(
-    () => PERCEPTRON_CHALLENGES.find((c) => c.id === challengeId) || PERCEPTRON_CHALLENGES[0],
+    () => BOOK_PUZZLES.find((c) => c.id === challengeId) || BOOK_PUZZLES[0],
     [challengeId],
   )
-  const [cWeights, setCWeights] = useState(() => challenge.inputLabels.map(() => 0.5))
+  const [cWeights, setCWeights] = useState([0.5, 0.5])
   const [cBias, setCBias] = useState(0)
   const [previewRowIdx, setPreviewRowIdx] = useState(0)
   const [showHint, setShowHint] = useState(false)
   const [solvedIds, setSolvedIds] = useState(() => new Set())
   const celebratedRef = useRef(new Set())
 
-  const selectScenario = (nextId) => {
-    const found = PERCEPTRON_SCENARIOS.find((s) => s.id === nextId)
-    if (!found) return
-    setScenarioId(found.id)
-    setInputs(found.inputs.map((i) => i.defaultValue))
-    setWeights(found.inputs.map((i) => i.defaultWeight))
-    setBias(found.bias)
+  const sandboxResult = useMemo(
+    () => computePerceptron(inputs, weights, bias, 'step'),
+    [inputs, weights, bias],
+  )
+
+  const challengeEval = useMemo(
+    () => checkPerceptronChallenge(challenge, cWeights, cBias, 'step'),
+    [challenge, cWeights, cBias],
+  )
+
+  const previewRow = challenge.truthTable[previewRowIdx] || challenge.truthTable[0]
+  const challengeResult = useMemo(
+    () => computePerceptron(previewRow.inputs, cWeights, cBias, 'step'),
+    [previewRow, cWeights, cBias],
+  )
+
+  const prevFiredRef = useRef(sandboxResult.fired)
+  useEffect(() => {
+    if (sandboxResult.fired && !prevFiredRef.current) {
+      playNeuronFire()
+    }
+    prevFiredRef.current = sandboxResult.fired
+  }, [sandboxResult.fired])
+
+  useEffect(() => {
+    if (challengeEval.passed && !celebratedRef.current.has(challenge.id)) {
+      celebratedRef.current.add(challenge.id)
+      setSolvedIds((prev) => new Set(prev).add(challenge.id))
+      playSuccess()
+      try {
+        confetti({ particleCount: 60, spread: 62, origin: { y: 0.7 } })
+      } catch {
+        // Ignore in headless environments
+      }
+    }
+  }, [challengeEval.passed, challenge.id])
+
+  const resetPark = () => {
+    playClick()
+    setInputs(scenario.inputs.map((i) => i.defaultValue))
+    setWeights(scenario.inputs.map((i) => i.defaultWeight))
+    setBias(scenario.bias)
   }
 
-  const selectChallenge = (nextId) => {
-    const found = PERCEPTRON_CHALLENGES.find((c) => c.id === nextId)
-    if (!found) return
-    setChallengeId(found.id)
-    setCWeights(found.inputLabels.map(() => 0.5))
+  const selectPuzzle = (id) => {
+    playClick()
+    setChallengeId(id)
+    setCWeights([0.5, 0.5])
     setCBias(0)
     setPreviewRowIdx(0)
     setShowHint(false)
   }
 
-  const sandboxResult = useMemo(
-    () => computePerceptron(inputs, weights, bias, activation),
-    [inputs, weights, bias, activation],
-  )
-
-  const challengeEval = useMemo(
-    () => checkPerceptronChallenge(challenge, cWeights, cBias, activation),
-    [challenge, cWeights, cBias, activation],
-  )
-
-  const previewRow = challenge.truthTable[previewRowIdx] || challenge.truthTable[0]
-  const challengeDiagramResult = useMemo(
-    () => computePerceptron(previewRow.inputs, cWeights, cBias, activation),
-    [previewRow, cWeights, cBias, activation],
-  )
-
-  useEffect(() => {
-    if (tab === 'challenges' && challengeEval.passed && !celebratedRef.current.has(challenge.id)) {
-      celebratedRef.current.add(challenge.id)
-      setSolvedIds((prev) => new Set(prev).add(challenge.id))
-      playSuccess()
-      confetti({
-        particleCount: 65,
-        spread: 65,
-        origin: { y: 0.65 },
-      })
-    }
-  }, [tab, challengeEval.passed, challenge.id])
-
-  const activeResult = tab === 'sandbox' ? sandboxResult : challengeDiagramResult
-  const prevFiredRef = useRef(activeResult.fired)
-  useEffect(() => {
-    if (activeResult.fired && !prevFiredRef.current) {
-      playNeuronFire()
-    }
-    prevFiredRef.current = activeResult.fired
-  }, [activeResult.fired])
-  const meterPct = Math.max(4, Math.min(96, ((activeResult.weightedSum + 8) / 16) * 100))
-  const isDone = completedStages.has(1)
+  const meterPct = Math.max(4, Math.min(96, ((sandboxResult.weightedSum + 8) / 16) * 100))
 
   return (
-    <div className="lab-page">
-      <header className="lab-header" style={{ '--stage-accent': stage?.color || '#f59e0b' }}>
-        <div>
-          <div className="stage-card-badges">
-            <span
-              className="badge"
-              style={{ background: '#f59e0b1a', color: '#b45309', border: '1px solid #f59e0b55' }}
-            >
-              Stage 1 · {stage?.level || 'Beginner'}
-            </span>
-            <span className="badge badge-subtle">{stage?.ageBadge || 'Ages 8+'}</span>
-            {isDone && (
-              <span className="badge badge-success">
-                <CheckCircle2 size={13} />
-                Completed
-              </span>
-            )}
-          </div>
-          <h1>{stage?.title || 'Meet the Neuron'}</h1>
-          <p className="stage-card-subtitle">
-            {stage?.subtitle || 'How one tiny artificial neuron weighs clues to make a decision.'}
-          </p>
-        </div>
+    <BookChapter
+      chapterId={1}
+      cliffhangerTitle="Wait — what if there are a MILLION dials?"
+      cliffhangerText="Tuning 2 weights by hand for the Treehouse Lock took a little trial and error. Modern AI models have billions of weights! No human could ever adjust them by hand — so in Chapter 2, let's teach a neuron how to learn from its own mistakes."
+    >
+      {/* Beat 1: Meet the Artificial Neuron */}
+      <BookSection num="1" title="Every Giant AI Starts with One Tiny Switch" id="ch1-meet">
+        <p className="book-prose">
+          Computers don’t have eyes, ears, or feelings — they only work with <strong>numbers</strong>.
+          To make decisions, artificial intelligence uses tiny digital brain cells called{' '}
+          <TermTip id="perceptron">neurons</TermTip>.
+        </p>
+        <p className="book-prose">
+          A single neuron does three simple things: it checks its <strong>clues</strong> (inputs),
+          multiplies each clue by an importance dial called a <TermTip id="weight">weight</TermTip>,
+          and adds a starting mood called a <TermTip id="bias">bias</TermTip>. If the total score
+          reaches <strong>0 or higher</strong>, the neuron fires <strong>YES!</strong>
+        </p>
 
-        <div className="neuron-tabs" role="tablist" aria-label="Neuron lab mode">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'sandbox'}
-            className={`neuron-tab-btn ${tab === 'sandbox' ? 'is-active' : ''}`}
-            onClick={() => {
-              setTab('sandbox')
-              playClick()
-            }}
-          >
-            <Zap size={16} />
-            <span>Neuron Sandbox</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'challenges'}
-            className={`neuron-tab-btn ${tab === 'challenges' ? 'is-active' : ''}`}
-            onClick={() => {
-              setTab('challenges')
-              playClick()
-            }}
-          >
-            <Puzzle size={16} />
-            <span>Logic Puzzles ({solvedIds.size}/{PERCEPTRON_CHALLENGES.length})</span>
-          </button>
-        </div>
-      </header>
-
-      <div className={isDeepDive ? 'callout-deep' : 'callout-kid'}>
-        {isDeepDive ? (
-          <>
-            <strong><TermTip id="perceptron">Perceptron</TermTip> Model:</strong> Computes a linear combination{' '}
-            <code>z = Σ(wᵢ · xᵢ) + b</code> and passes it through either a <TermTip id="step">Step</TermTip> function{' '}
-            <code>u(z)</code> or logistic <TermTip id="sigmoid">Sigmoid</TermTip> <code>σ(z) = 1 / (1 + e⁻ᶻ)</code>.
-          </>
-        ) : (
-          <>
-            <strong>How it works:</strong> An artificial neuron checks clues (inputs), multiplies each
-            clue by how important it is (<TermTip id="weight">weight</TermTip>), adds a starting nudge (<TermTip id="bias">bias</TermTip>), and fires if the total
-            score reaches <strong>0 or higher</strong>!
-          </>
-        )}
-      </div>
-
-      {tab === 'sandbox' ? (
-        <>
-          <div className="neuron-picker-row">
-            {PERCEPTRON_SCENARIOS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`neuron-scenario-btn ${scenario.id === item.id ? 'is-active' : ''}`}
-                onClick={() => selectScenario(item.id)}
-              >
-                <span aria-hidden="true">{item.emoji}</span>
-                <span>{item.title}</span>
-              </button>
-            ))}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => selectScenario(scenario.id)}
-            >
-              <RotateCcw size={15} />
+        {/* Demo 1A: Go to the Park? */}
+        <div className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div>
+              <h3 style={{ fontSize: '1.18rem' }}>
+                {scenario.emoji} Try It: {scenario.title}
+              </h3>
+              <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
+                Tap any clue ON or OFF, and slide the importance weights. Try turning on <strong>Thunderstorm</strong>!
+              </p>
+            </div>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={resetPark}>
+              <RotateCcw size={14} />
               <span>Reset</span>
             </button>
           </div>
 
-          <div className="neuron-main-grid">
-            <section className="lab-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                <div>
-                  <h2 style={{ fontSize: '1.2rem' }}>
-                    {scenario.emoji} {scenario.title}
-                  </h2>
-                  <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)' }}>
-                    {scenario.description}
-                  </p>
-                </div>
-              </div>
+          <NeuronDiagram
+            inputs={inputs}
+            labels={scenario.inputs.map((i) => `${i.emoji} ${i.label}`)}
+            weights={weights}
+            bias={bias}
+            result={sandboxResult}
+            onToggleInput={(idx) => {
+              playClick()
+              setInputs((prev) => prev.map((v, i) => (i === idx ? (v ? 0 : 1) : v)))
+            }}
+          />
 
-              <NeuronDiagram
-                inputs={inputs}
-                labels={scenario.inputs.map((i) => `${i.emoji} ${i.label}`)}
-                weights={weights}
-                bias={bias}
-                result={sandboxResult}
-                activation={activation}
-                onToggleInput={(idx) =>
-                  setInputs((prev) => prev.map((v, i) => (i === idx ? (v ? 0 : 1) : v)))
-                }
-                isDeepDive={isDeepDive}
-              />
+          <div className="sum-meter-box">
+            <div className="sum-meter-header">
+              <span>Neuron Total Score</span>
+              <span className="font-mono" style={{ color: sandboxResult.weightedSum >= 0 ? '#059669' : '#dc2626' }}>
+                {formatSigned(sandboxResult.weightedSum, 2)} (fires at ≥ 0)
+              </span>
+            </div>
+            <div className="sum-meter-track">
+              <div className="sum-meter-zero" />
+              <div className="sum-meter-marker" style={{ left: `${meterPct}%` }} />
+            </div>
+            <div className="sum-meter-scale">
+              <span>−8 (Strong NO)</span>
+              <span>0 (Threshold)</span>
+              <span>+8 (Strong YES)</span>
+            </div>
+          </div>
 
-              <div className="sum-meter-box">
-                <div className="sum-meter-header">
-                  <span>{isDeepDive ? 'Pre-activation z = w·x + b' : 'Neuron Total Score'}</span>
-                  <span className="font-mono" style={{ color: sandboxResult.weightedSum >= 0 ? '#059669' : '#dc2626' }}>
-                    {formatSigned(sandboxResult.weightedSum, 2)} (fires at ≥ 0)
+          <div className={`decision-banner ${sandboxResult.fired ? 'is-yes' : 'is-no'}`}>
+            <span>{sandboxResult.fired ? scenario.yesLabel : scenario.noLabel}</span>
+            <span className="badge badge-subtle font-mono">output = {sandboxResult.output}</span>
+          </div>
+
+          <div className="control-list">
+            {scenario.inputs.map((inp, idx) => (
+              <div key={inp.id} className="clue-row">
+                <div className="clue-row-top">
+                  <button
+                    type="button"
+                    className={`clue-toggle-btn ${inputs[idx] ? 'is-on' : ''}`}
+                    onClick={() => {
+                      playClick()
+                      setInputs((prev) => prev.map((v, i) => (i === idx ? (v ? 0 : 1) : v)))
+                    }}
+                  >
+                    <span>{inp.emoji}</span>
+                    <span>{inp.label}</span>
+                    <span className="font-mono">({inputs[idx] ? 'ON' : 'OFF'})</span>
+                  </button>
+                  <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    {inputs[idx]} × {formatSigned(weights[idx])} = {formatSigned(inputs[idx] * weights[idx])}
                   </span>
                 </div>
-                <div className="sum-meter-track">
-                  <div className="sum-meter-zero" />
-                  <div className="sum-meter-marker" style={{ left: `${meterPct}%` }} />
-                </div>
-                <div className="sum-meter-scale">
-                  <span>-8 (Strong NO)</span>
-                  <span>0 (Threshold)</span>
-                  <span>+8 (Strong YES)</span>
+                <div className="weight-slider-row">
+                  <span>Weight w{idx + 1}</span>
+                  <input
+                    type="range"
+                    min="-5"
+                    max="5"
+                    step="0.5"
+                    value={weights[idx]}
+                    onChange={(e) => {
+                      const nextVal = parseFloat(e.target.value)
+                      setWeights((prev) => prev.map((w, i) => (i === idx ? nextVal : w)))
+                    }}
+                    aria-label={`Weight for ${inp.label}`}
+                  />
+                  <span className={`weight-val ${weights[idx] > 0 ? 'is-pos' : weights[idx] < 0 ? 'is-neg' : ''}`}>
+                    {formatSigned(weights[idx])}
+                  </span>
                 </div>
               </div>
+            ))}
 
-              <div className={`decision-banner ${sandboxResult.fired ? 'is-yes' : 'is-no'}`}>
-                <span>{sandboxResult.fired ? scenario.yesLabel : scenario.noLabel}</span>
-                <span className="badge badge-subtle font-mono">
-                  {activation === 'sigmoid'
-                    ? `${(sandboxResult.output * 100).toFixed(1)}% sure`
-                    : `output = ${sandboxResult.output}`}
+            <div className="clue-row" style={{ background: '#eef2ff', borderColor: '#c7d2fe' }}>
+              <div className="weight-slider-row">
+                <strong><TermTip id="bias">Bias</TermTip> (Mood)</strong>
+                <input
+                  type="range"
+                  min="-5"
+                  max="5"
+                  step="0.5"
+                  value={bias}
+                  onChange={(e) => setBias(parseFloat(e.target.value))}
+                  aria-label="Neuron bias"
+                />
+                <span className="weight-val" style={{ color: '#4338ca' }}>
+                  {formatSigned(bias)}
                 </span>
               </div>
-
-              {!isDeepDive && (
-                <p style={{ marginTop: 12, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  💡 <strong>Tip:</strong> {scenario.kidTip}
-                </p>
-              )}
-            </section>
-
-            <section className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div>
-                <h3 style={{ fontSize: '1.08rem', marginBottom: 4 }}>
-                  Clues &amp; Importance <TermTip id="weight">Weights</TermTip>
-                </h3>
-                <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)' }}>
-                  Toggle each clue ON/OFF and drag its weight slider. Positive = vote YES, Negative = vote NO.
-                </p>
-              </div>
-
-              <div className="control-list">
-                {scenario.inputs.map((inp, idx) => (
-                  <div key={inp.id} className="clue-row">
-                    <div className="clue-row-top">
-                      <button
-                        type="button"
-                        className={`clue-toggle-btn ${inputs[idx] ? 'is-on' : ''}`}
-                        onClick={() =>
-                          setInputs((prev) => prev.map((v, i) => (i === idx ? (v ? 0 : 1) : v)))
-                        }
-                      >
-                        <span>{inp.emoji}</span>
-                        <span>{inp.label}</span>
-                        <span className="font-mono">({inputs[idx] ? 'ON' : 'OFF'})</span>
-                      </button>
-                      <span className="font-mono" style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        contrib: {formatSigned(inputs[idx] * weights[idx], 1)}
-                      </span>
-                    </div>
-
-                    <div className="weight-slider-row">
-                      <span>Weight w{idx + 1}</span>
-                      <input
-                        type="range"
-                        min="-5"
-                        max="5"
-                        step="0.5"
-                        value={weights[idx]}
-                        onChange={(e) => {
-                          const nextVal = parseFloat(e.target.value)
-                          setWeights((prev) => prev.map((w, i) => (i === idx ? nextVal : w)))
-                        }}
-                        aria-label={`Weight for ${inp.label}`}
-                      />
-                      <span className={`weight-val ${weights[idx] > 0 ? 'is-pos' : weights[idx] < 0 ? 'is-neg' : ''}`}>
-                        {formatSigned(weights[idx])}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-
-                <div className="clue-row" style={{ background: '#eef2ff', borderColor: '#c7d2fe' }}>
-                  <div className="weight-slider-row">
-                    <strong><TermTip id="bias">Bias</TermTip> (b)</strong>
-                    <input
-                      type="range"
-                      min="-5"
-                      max="5"
-                      step="0.5"
-                      value={bias}
-                      onChange={(e) => setBias(parseFloat(e.target.value))}
-                      aria-label="Neuron bias"
-                    />
-                    <span className="weight-val" style={{ color: '#4338ca' }}>
-                      {formatSigned(bias)}
-                    </span>
-                  </div>
-                  <span style={{ fontSize: '0.78rem', color: '#3730a3' }}>
-                    {isDeepDive
-                      ? 'Shifts the hyperplane threshold: fires when w·x ≥ −b.'
-                      : 'Sets how picky the neuron is! Negative bias needs stronger YES votes.'}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <h4 style={{ fontSize: '0.92rem', marginBottom: 8 }}>
-                  <TermTip id="activation">Activation Function</TermTip>{' '}
-                  <span style={{ fontWeight: 500, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    (<TermTip id="step">Step</TermTip> vs <TermTip id="sigmoid">Sigmoid</TermTip>)
-                  </span>
-                </h4>
-                <div className="activation-toggle">
-                  <button
-                    type="button"
-                    className={`activation-btn ${activation === 'step' ? 'is-active' : ''}`}
-                    onClick={() => setActivation('step')}
-                  >
-                    Step (0 or 1 Switch)
-                  </button>
-                  <button
-                    type="button"
-                    className={`activation-btn ${activation === 'sigmoid' ? 'is-active' : ''}`}
-                    onClick={() => setActivation('sigmoid')}
-                  >
-                    Sigmoid (Smooth %)
-                  </button>
-                </div>
-              </div>
-
-              {isDeepDive && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div className="formula-box">
-                    <div>
-                      z ={' '}
-                      {sandboxResult.terms
-                        .map((t) => `(${formatSigned(t.weight)}×${t.input})`)
-                        .join(' + ')}{' '}
-                      + ({formatSigned(bias)}) = <strong>{sandboxResult.weightedSum.toFixed(2)}</strong>
-                    </div>
-                    <div style={{ marginTop: 4, color: '#38bdf8' }}>
-                      {activation === 'sigmoid'
-                        ? `σ(z) = 1 / (1 + e^(${(-sandboxResult.weightedSum).toFixed(2)})) = ${sandboxResult.output.toFixed(4)}`
-                        : `step(z) = (z >= 0 ? 1 : 0) = ${sandboxResult.output}`}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <ActivationMiniPlot
-                      activation={activation}
-                      z={sandboxResult.weightedSum}
-                      output={sandboxResult.output}
-                    />
-                  </div>
-                </div>
-              )}
-            </section>
+              <span style={{ fontSize: '0.8rem', color: '#3730a3' }}>
+                Negative bias makes the neuron picky — it needs stronger YES clues to fire!
+              </span>
+            </div>
           </div>
-        </>
-      ) : (
-        <>
-          <div className="neuron-picker-row">
-            {PERCEPTRON_CHALLENGES.map((item) => {
-              const solved = solvedIds.has(item.id)
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`neuron-scenario-btn ${challenge.id === item.id ? 'is-active' : ''}`}
-                  onClick={() => selectChallenge(item.id)}
-                >
-                  <span aria-hidden="true">{item.emoji}</span>
-                  <span>
-                    {item.gate}: {item.title}
-                  </span>
-                  {solved && <CheckCircle2 size={16} color="#10b981" />}
-                </button>
-              )
-            })}
+
+          <MathDrawer title="Peek at the Math: Weighted Sum & Activation">
+            <p>
+              A perceptron computes a weighted sum <code>z = Σ(wᵢ · xᵢ) + b</code> and passes it through a{' '}
+              <strong>Step</strong> switch (<code>1</code> if <code>z ≥ 0</code>, else <code>0</code>):
+            </p>
+            <div className="formula-box">
+              z ={' '}
+              {sandboxResult.terms
+                .map((t) => `(${formatSigned(t.weight)} × ${t.input})`)
+                .join(' + ')}{' '}
+              + ({formatSigned(bias)}) = <strong>{sandboxResult.weightedSum.toFixed(2)}</strong>
+              {'  →  '}step(z) = <strong>{sandboxResult.output}</strong>
+            </div>
+            <p style={{ fontSize: '0.84rem' }}>
+              Later, when networks train automatically, they swap the hard Step switch for a smooth{' '}
+              <TermTip id="sigmoid">Sigmoid</TermTip> curve <code>σ(z) = 1 / (1 + e⁻ᶻ)</code> so small weight nudges cause smooth changes.
+            </p>
+          </MathDrawer>
+        </div>
+
+        <div className="book-takeaway">
+          <strong>Aha!</strong> Positive weights push a neuron toward <strong>YES</strong>, negative weights act like
+          warning signs pushing toward <strong>NO</strong>, and the bias sets how hard it is to convince.
+        </div>
+      </BookSection>
+
+      {/* Beat 2: Wire a Logic Lock by Hand */}
+      <BookSection num="2" title="Your Turn: Wire a Secret Treehouse Lock" id="ch1-puzzle">
+        <p className="book-prose">
+          Can one tiny neuron actually act like a computer chip? Try tuning the weights and bias below so the
+          neuron passes <strong>all 4 test cases</strong> in the table!
+        </p>
+
+        <div className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {BOOK_PUZZLES.map((item) => {
+                const solved = solvedIds.has(item.id)
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`neuron-scenario-btn ${challenge.id === item.id ? 'is-active' : ''}`}
+                    onClick={() => selectPuzzle(item.id)}
+                  >
+                    <span>{item.emoji}</span>
+                    <span>{item.gate}: {item.title}</span>
+                    {solved && <CheckCircle2 size={15} color="#10b981" />}
+                  </button>
+                )
+              })}
+            </div>
+
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                playClick()
+                setShowHint((h) => !h)
+              }}
+            >
+              <Lightbulb size={14} />
+              <span>{showHint ? 'Hide Hint' : 'Need a Hint?'}</span>
+            </button>
           </div>
+
+          <p style={{ fontSize: '0.94rem', color: 'var(--text-secondary)' }}>
+            <strong>Mission:</strong> {challenge.story}
+          </p>
+
+          {showHint && (
+            <div className="callout-kid" style={{ fontSize: '0.88rem' }}>
+              💡 <strong>Hint:</strong> {challenge.hint}
+            </div>
+          )}
 
           <div className="neuron-main-grid">
-            <section className="lab-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
-                <div>
-                  <span className="badge badge-explorer" style={{ marginBottom: 6 }}>
-                    {challenge.gate} Gate Puzzle
-                  </span>
-                  <h2 style={{ fontSize: '1.25rem' }}>
-                    {challenge.emoji} {challenge.title}
-                  </h2>
-                  <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                    {challenge.story}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setShowHint((h) => !h)}
-                >
-                  <Lightbulb size={15} />
-                  <span>{showHint ? 'Hide Hint' : 'Hint'}</span>
-                </button>
-              </div>
-
-              {showHint && (
-                <div className="callout-kid" style={{ marginBottom: 14, fontSize: '0.86rem' }}>
-                  💡 <strong>Hint:</strong> {challenge.hint}
-                </div>
-              )}
-
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <NeuronDiagram
                 inputs={previewRow.inputs}
                 labels={challenge.inputLabels}
                 weights={cWeights}
                 bias={cBias}
-                result={challengeDiagramResult}
-                activation={activation}
-                isDeepDive={isDeepDive}
+                result={challengeResult}
               />
-
-              <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 8 }}>
-                Click any row in the Truth Table on the right to preview how your neuron behaves on those inputs.
-              </p>
-            </section>
-
-            <section className="lab-card" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: '1.08rem' }}>Tune Weights &amp; Bias</h3>
-                <span className={`badge ${challengeEval.passed ? 'badge-success' : 'badge-subtle'}`}>
-                  {challengeEval.score}/{challengeEval.total} rows match
-                </span>
-              </div>
 
               <div className="control-list">
                 {challenge.inputLabels.map((lbl, idx) => (
@@ -798,7 +572,7 @@ export default function NeuronLab() {
 
                 <div className="clue-row" style={{ background: '#eef2ff', borderColor: '#c7d2fe' }}>
                   <div className="weight-slider-row">
-                    <strong>Bias (b)</strong>
+                    <strong>Bias</strong>
                     <input
                       type="range"
                       min="-4"
@@ -813,80 +587,55 @@ export default function NeuronLab() {
                   </div>
                 </div>
               </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <strong style={{ fontSize: '0.96rem' }}>Test Cases (Click a row to preview)</strong>
+                <span className={`badge ${challengeEval.passed ? 'badge-success' : 'badge-subtle'}`}>
+                  {challengeEval.score}/{challengeEval.total} match
+                </span>
+              </div>
+
+              <table className="truth-table">
+                <thead>
+                  <tr>
+                    {challenge.inputLabels.map((lbl) => (
+                      <th key={lbl}>{lbl.split(' ')[0]}</th>
+                    ))}
+                    <th>Goal</th>
+                    <th>Yours</th>
+                    <th>✓</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {challengeEval.results.map((row, idx) => (
+                    <tr
+                      key={idx}
+                      className={previewRowIdx === idx ? 'is-preview' : ''}
+                      onClick={() => setPreviewRowIdx(idx)}
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {row.inputs.map((v, i) => (
+                        <td key={i} className="font-mono">{v}</td>
+                      ))}
+                      <td className="font-mono" style={{ fontWeight: 700 }}>{row.expected}</td>
+                      <td className="font-mono" style={{ fontWeight: 700 }}>{row.actual}</td>
+                      <td>{row.correct ? '✅' : '❌'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
               {challengeEval.passed && (
-                <div className="decision-banner is-yes" style={{ marginTop: 2 }}>
-                  <span>
-                    <Sparkles size={16} style={{ verticalAlign: 'middle', marginRight: 6 }} />
-                    You solved the {challenge.gate} puzzle!
-                  </span>
+                <div className="decision-banner is-yes">
+                  <span>🎉 You wired the {challenge.gate} gate!</span>
                 </div>
               )}
-
-              <div style={{ overflowX: 'auto' }}>
-                <table className="truth-table">
-                  <thead>
-                    <tr>
-                      {challenge.inputLabels.map((lbl, idx) => (
-                        <th key={lbl}>x{idx + 1}</th>
-                      ))}
-                      <th>Score z</th>
-                      <th>Goal</th>
-                      <th>Yours</th>
-                      <th>Check</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {challengeEval.results.map((row, idx) => (
-                      <tr
-                        key={idx}
-                        className={`${previewRowIdx === idx ? 'is-preview' : ''} ${row.correct ? 'is-pass' : 'is-fail'}`}
-                        onClick={() => setPreviewRowIdx(idx)}
-                      >
-                        {row.inputs.map((v, i) => (
-                          <td key={i} className="font-mono">
-                            {v}
-                          </td>
-                        ))}
-                        <td className="font-mono">{formatSigned(row.weightedSum, 1)}</td>
-                        <td className="font-mono">{row.expected}</td>
-                        <td className="font-mono">{row.actual}</td>
-                        <td>{row.correct ? '✅ Pass' : '❌ Try again'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
+            </div>
           </div>
-        </>
-      )}
-
-      <nav className="lab-footer-nav" aria-label="Stage 1 navigation">
-        <button type="button" className="btn btn-secondary" onClick={() => navigate('/')}>
-          <ArrowLeft size={16} />
-          <span>Pathway Map</span>
-        </button>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-          <button
-            type="button"
-            className={`btn ${isDone ? 'btn-success' : 'btn-secondary'}`}
-            onClick={() => {
-              markStageComplete(1)
-              playSuccess()
-            }}
-          >
-            <CheckCircle2 size={16} />
-            <span>{isDone ? 'Stage 1 Completed' : 'Mark Stage 1 Complete'}</span>
-          </button>
-
-          <button type="button" className="btn btn-primary" onClick={() => navigate('/stage/2')}>
-            <span>Next: Stage 2 →</span>
-            <ArrowRight size={16} />
-          </button>
         </div>
-      </nav>
-    </div>
+      </BookSection>
+    </BookChapter>
   )
 }

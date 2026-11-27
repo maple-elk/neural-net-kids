@@ -69,7 +69,7 @@ export const LLM_HISTORY_MILESTONES = [
       'Introduced the first trainable artificial neuron with adjustable weights and a guaranteed learning rule for linearly separable patterns.',
     deepDive:
       'Rosenblatt’s Perceptron Learning Algorithm updated weights via w ← w + η(y − ŷ)x on misclassified examples. Novikoff later proved the Perceptron Convergence Theorem: if a linear separator exists, the algorithm converges in finite steps.',
-    relatedStageId: 1,
+    relatedStageId: 2,
     funFact:
       'The Mark I Perceptron used 400 light sensors wired to motorized potentiometers — a literal spaghetti tangle of cables!',
   },
@@ -86,7 +86,7 @@ export const LLM_HISTORY_MILESTONES = [
       'Exposed the geometric limit of single-layer linear models — motivating researchers to figure out how to train multi-layer networks.',
     deepDive:
       'In "Perceptrons" (1969), Minsky and Papert rigorously proved that a single-layer perceptron cannot compute non-linearly separable predicates such as XOR or connectedness. While multi-layer networks could represent XOR, no practical credit-assignment algorithm was yet widely adopted.',
-    relatedStageId: 2,
+    relatedStageId: 3,
     funFact:
       'Seymour Papert later created the Logo programming language and its famous drawing turtle to help kids learn math and coding!',
   },
@@ -137,7 +137,7 @@ export const LLM_HISTORY_MILESTONES = [
       'Solved the vanishing gradient problem in sequences, enabling AI to handle speech recognition, translation, and long sentences.',
     deepDive:
       'Long Short-Term Memory networks introduced an additive cell state regulated by learned input, forget, and output gates, creating a constant-error carousel that preserved gradient flow across hundreds of time steps.',
-    relatedStageId: 5,
+    relatedStageId: 6,
     funFact:
       'For nearly two decades, LSTMs powered the voice recognition and translation apps on billions of smartphones before Transformers took over.',
   },
@@ -188,7 +188,7 @@ export const LLM_HISTORY_MILESTONES = [
       'Replaced slow sequential recurrence with parallel multi-head self-attention, creating the blueprint behind almost every modern LLM.',
     deepDive:
       'The Transformer architecture relies entirely on stacked multi-head scaled dot-product self-attention, positional encodings, residual connections, and feed-forward layers. Removing recurrence unlocked massive parallelization across GPUs and TPUs.',
-    relatedStageId: 5,
+    relatedStageId: 6,
     funFact:
       'The "T" in GPT and ChatGPT stands for Transformer — directly named after this 2017 paper!',
   },
@@ -205,7 +205,7 @@ export const LLM_HISTORY_MILESTONES = [
       'Demonstrated predictable scaling laws and "in-context learning," where large pretrained models solve new tasks from a prompt alone.',
     deepDive:
       'From GPT-1 (117M parameters) to GPT-2 (1.5B) and GPT-3 (175B), autoregressive decoder-only Transformers exhibited smooth power-law loss improvements with compute, data, and parameters — unlocking few-shot prompting without gradient updates.',
-    relatedStageId: 6,
+    relatedStageId: 7,
     funFact:
       'GPT-3 had 175 billion adjustable weights — more than 20 times the number of people living on planet Earth!',
   },
@@ -222,7 +222,7 @@ export const LLM_HISTORY_MILESTONES = [
       'Turned base next-token predictors into helpful, instruction-following conversational assistants via Reinforcement Learning from Human Feedback.',
     deepDive:
       'Fine-tuning pretrained LLMs with supervised instruction demonstrations followed by reward modeling and PPO (RLHF) aligned model outputs with human intent, truthfulness, and safety — sparking mainstream global adoption.',
-    relatedStageId: 6,
+    relatedStageId: 7,
     funFact:
       'ChatGPT reached 100 million monthly users in just two months — the fastest-growing consumer app in internet history at the time!',
   },
@@ -239,7 +239,7 @@ export const LLM_HISTORY_MILESTONES = [
       'Unified text, vision, and audio into multimodal models while introducing test-time reasoning and powerful open-weights ecosystems.',
     deepDive:
       'Recent frontiers combine native multimodal tokenization (text, image, audio, video), mixture-of-experts efficiency, open-weight releases (Llama, Gemma, Qwen, DeepSeek), and reinforcement-learned chain-of-thought reasoning that scales performance with test-time compute.',
-    relatedStageId: 6,
+    relatedStageId: 7,
     funFact:
       'Some modern reasoning models check their own math and fix their own mistakes mid-thought — just like showing your work on a school test!',
   },

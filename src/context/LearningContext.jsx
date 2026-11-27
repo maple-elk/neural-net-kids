@@ -31,7 +31,7 @@ function loadCompletedStages() {
     if (!raw) return new Set()
     const parsed = JSON.parse(raw)
     if (Array.isArray(parsed)) {
-      return new Set(parsed.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 7))
+      return new Set(parsed.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 8))
     }
   } catch {
     // Ignore storage errors
@@ -172,7 +172,7 @@ export function LearningProvider({ children }) {
     const match = currentRoute.match(/^\/stage\/(\d+)$/)
     if (!match) return null
     const id = Number(match[1])
-    return id >= 1 && id <= 7 ? id : null
+    return id >= 1 && id <= 8 ? id : null
   }, [currentRoute])
 
   const value = useMemo(
