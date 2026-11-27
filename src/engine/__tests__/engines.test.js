@@ -204,6 +204,44 @@ describe('MLP & Backprop Engine (src/engine/mlp.js)', () => {
     expect(trace.lossDelta).toBeLessThan(0);
     expect(trace.nextOutput).toBeGreaterThan(trace.forward.output);
   });
+
+  it('converges in Chapter 2 (single neuron linear) and Chapter 3 (XOR with 4 hidden neurons) via both trainStep and trainEpoch', () => {
+    // Chapter 2 SingleNeuronMapDemo configuration
+    const linearData = generateDataset('linear', 100, 42);
+    const ch2Net = createMLP({
+      inputSize: 2,
+      hiddenSizes: [],
+      outputSize: 1,
+      activation: 'tanh',
+      learningRate: 0.75,
+      seed: 19,
+    });
+    let ch2Res = null;
+    for (let i = 0; i < 220; i++) {
+      ch2Res = ch2Net.trainEpoch(linearData);
+    }
+    expect(ch2Res.epoch).toBe(220);
+    expect(ch2Res.loss).toBeLessThan(0.04);
+    expect(ch2Res.accuracy).toBe(1);
+
+    // Chapter 3 XorBreakthroughDemo configuration (4 hidden neurons)
+    const xorData = generateDataset('xor', 120, 42);
+    const ch3Net = createMLP({
+      inputSize: 2,
+      hiddenSizes: [4],
+      outputSize: 1,
+      activation: 'tanh',
+      learningRate: 0.55,
+      seed: 42,
+    });
+    let ch3Res = null;
+    for (let i = 0; i < 450; i++) {
+      ch3Res = ch3Net.trainStep(xorData);
+    }
+    expect(ch3Res.epoch).toBe(450);
+    expect(ch3Res.loss).toBeLessThan(0.045);
+    expect(ch3Res.accuracy).toBeGreaterThanOrEqual(0.96);
+  });
 });
 
 describe('Convolution Vision Engine (src/engine/convolution.js)', () => {

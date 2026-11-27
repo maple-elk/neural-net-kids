@@ -364,6 +364,16 @@ export class MLP {
   }
 
   /**
+   * Alias for trainStep — performs one full-dataset training epoch.
+   * @param {Array<{ x: number, y: number, label: number }>} dataset
+   * @param {number} [lr=this.learningRate]
+   * @returns {{ epoch: number, loss: number, accuracy: number }}
+   */
+  trainEpoch(dataset, lr = this.learningRate) {
+    return this.trainStep(dataset, lr);
+  }
+
+  /**
    * Return a clean snapshot of weights and layer architecture for UI rendering.
    */
   getSnapshot() {

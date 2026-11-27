@@ -88,7 +88,7 @@ function SingleNeuronMapDemo() {
       hiddenSizes: [],
       outputSize: 1,
       activation: 'tanh',
-      learningRate: 0.45,
+      learningRate: 0.75,
       seed: 19,
     })
     const ev = net.evaluate(dataset)
@@ -173,10 +173,10 @@ function SingleNeuronMapDemo() {
       const net = mlpRef.current
       let res = null
       for (let i = 0; i < count; i++) {
-        res = net.trainEpoch(dataset)
+        res = net.trainStep(dataset)
       }
       if (res) {
-        setEpoch((e) => e + count)
+        setEpoch(res.epoch)
         setLoss(res.loss)
         setAccuracy(res.accuracy)
         drawCanvas(net)
@@ -195,7 +195,7 @@ function SingleNeuronMapDemo() {
     let active = true
     const tick = () => {
       if (!active) return
-      stepEpochs(2)
+      stepEpochs(3)
       rafRef.current = window.requestAnimationFrame(tick)
     }
     rafRef.current = window.requestAnimationFrame(tick)
@@ -216,7 +216,7 @@ function SingleNeuronMapDemo() {
       hiddenSizes: [],
       outputSize: 1,
       activation: 'tanh',
-      learningRate: 0.45,
+      learningRate: 0.75,
       seed: nextSeed,
     })
     mlpRef.current = net

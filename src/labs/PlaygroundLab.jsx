@@ -194,7 +194,7 @@ function XorBreakthroughDemo() {
       hiddenSizes: withHidden ? [4] : [],
       outputSize: 1,
       activation: 'tanh',
-      learningRate: 0.4,
+      learningRate: withHidden ? 0.55 : 0.4,
       seed,
     })
     const ev = net.evaluate(dataset)
@@ -210,10 +210,13 @@ function XorBreakthroughDemo() {
   const canvasRef = useRef(null)
   const offscreenRef = useRef(null)
   const mlpRef = useRef(initial.net)
+  const probeRef = useRef(probe)
   const rafRef = useRef(null)
   const solvedSoundRef = useRef(false)
+  const stuckPausedRef = useRef(false)
 
   useEffect(() => {
+    probeRef.current = probe
     drawDecisionCanvas(canvasRef.current, offscreenRef, mlpRef.current, dataset, probe)
   }, [dataset, probe])
 
@@ -221,44 +224,51 @@ function XorBreakthroughDemo() {
     playClick()
     setIsPlaying(false)
     solvedSoundRef.current = false
+    stuckPausedRef.current = false
     setHasHidden(withHidden)
-    const fresh = createFresh(withHidden, withHidden ? 42 : 42)
+    const fresh = createFresh(withHidden, 42)
     mlpRef.current = fresh.net
     setEpoch(0)
     setLoss(fresh.loss)
     setAccuracy(fresh.accuracy)
     setSnapshot(fresh.snapshot)
     setTrace(fresh.trace)
-    drawDecisionCanvas(canvasRef.current, offscreenRef, fresh.net, dataset, probe)
+    drawDecisionCanvas(canvasRef.current, offscreenRef, fresh.net, dataset, probeRef.current)
   }
 
   const runSteps = useCallback(
     (count) => {
       const net = mlpRef.current
       let res = null
-      for (let i = 0; i < count; i++) res = net.trainEpoch(dataset)
+      for (let i = 0; i < count; i++) res = net.trainStep(dataset)
       if (!res) return
-      setEpoch((e) => e + count)
+      const curProbe = probeRef.current
+      setEpoch(res.epoch)
       setLoss(res.loss)
       setAccuracy(res.accuracy)
       setSnapshot(net.getSnapshot())
-      setTrace(net.forward([probe.x, probe.y]))
-      drawDecisionCanvas(canvasRef.current, offscreenRef, net, dataset, probe)
+      setTrace(net.forward([curProbe.x, curProbe.y]))
+      drawDecisionCanvas(canvasRef.current, offscreenRef, net, dataset, curProbe)
+      if (!hasHidden && res.epoch >= 60 && !stuckPausedRef.current) {
+        stuckPausedRef.current = true
+        setIsPlaying(false)
+      }
       if (hasHidden && res.loss < 0.045 && !solvedSoundRef.current) {
         solvedSoundRef.current = true
         playSuccess()
         setIsPlaying(false)
       }
     },
-    [dataset, probe, hasHidden],
+    [dataset, hasHidden],
   )
 
   useEffect(() => {
     if (!isPlaying) return undefined
     let active = true
+    const stepsPerFrame = hasHidden ? 4 : 2
     const tick = () => {
       if (!active) return
-      runSteps(3)
+      runSteps(stepsPerFrame)
       rafRef.current = window.requestAnimationFrame(tick)
     }
     rafRef.current = window.requestAnimationFrame(tick)
@@ -266,7 +276,7 @@ function XorBreakthroughDemo() {
       active = false
       if (rafRef.current) window.cancelAnimationFrame(rafRef.current)
     }
-  }, [isPlaying, runSteps])
+  }, [isPlaying, hasHidden, runSteps])
 
   const handleMouseMove = (e) => {
     const rect = e.currentTarget.getBoundingClientRect()
@@ -581,13 +591,13 @@ function FreePlaygroundSandbox() {
   const [datasetType, setDatasetType] = useState('circle')
   const [hiddenSizes, setHiddenSizes] = useState([4])
   const [activation, setActivation] = useState('tanh')
-  const [lr, setLr] = useState(0.35)
+  const [lr, setLr] = useState(0.6)
   const [isPlaying, setIsPlaying] = useState(false)
   const [epoch, setEpoch] = useState(0)
 
   const dataset = useMemo(() => generateDataset(datasetType, 120, 42), [datasetType])
   const initNet = useMemo(
-    () => createMLP({ inputSize: 2, hiddenSizes: [4], outputSize: 1, activation: 'tanh', learningRate: 0.35, seed: 42 }),
+    () => createMLP({ inputSize: 2, hiddenSizes: [4], outputSize: 1, activation: 'tanh', learningRate: 0.6, seed: 42 }),
     [],
   )
   const [loss, setLoss] = useState(() => initNet.evaluate(generateDataset('circle', 120, 42)).loss)
@@ -623,9 +633,9 @@ function FreePlaygroundSandbox() {
       if (!active) return
       const net = mlpRef.current
       let res = null
-      for (let i = 0; i < 3; i++) res = net.trainEpoch(dataset)
+      for (let i = 0; i < 5; i++) res = net.trainStep(dataset)
       if (res) {
-        setEpoch((e) => e + 3)
+        setEpoch(res.epoch)
         setLoss(res.loss)
         setAccuracy(res.accuracy)
         setSnapshot(net.getSnapshot())
@@ -651,7 +661,7 @@ function FreePlaygroundSandbox() {
               className={`btn btn-sm ${datasetType === ds ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => {
                 setDatasetType(ds)
-                const nextH = ds === 'spiral' ? [6, 6] : ds === 'linear' ? [] : [4]
+                const nextH = ds === 'spiral' ? [8, 8] : ds === 'linear' ? [] : [4]
                 setHiddenSizes(nextH)
                 rebuild(ds, nextH, activation, lr)
               }}
@@ -719,7 +729,7 @@ function FreePlaygroundSandbox() {
             <button
               type="button"
               className="pg-mini-step"
-              disabled={cnt >= 6}
+              disabled={cnt >= 8}
               onClick={() => {
                 const next = hiddenSizes.map((v, i) => (i === idx ? v + 1 : v))
                 setHiddenSizes(next)
@@ -768,7 +778,7 @@ function FreePlaygroundSandbox() {
         <input
           type="range"
           min="0.05"
-          max="1.0"
+          max="1.5"
           step="0.05"
           value={lr}
           onChange={(e) => {
