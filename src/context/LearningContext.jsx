@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { setSoundEnabled as syncSoundEnabled } from '../utils/sound.js'
 
-const MODE_STORAGE_KEY = 'brainspark:mode'
 const COMPLETED_STORAGE_KEY = 'brainspark:completedStages'
 const SOUND_STORAGE_KEY = 'brainspark:soundEnabled'
+const LEGACY_MODE_STORAGE_KEY = 'brainspark:mode'
 
 const LearningContext = createContext(null)
 
@@ -13,16 +13,6 @@ function parseHashRoute() {
   const cleaned = raw.replace(/^#/, '')
   if (!cleaned || cleaned === '/') return '/'
   return cleaned.startsWith('/') ? cleaned : `/${cleaned}`
-}
-
-function loadInitialMode() {
-  try {
-    const saved = window.localStorage.getItem(MODE_STORAGE_KEY)
-    if (saved === 'explorer' || saved === 'deep-dive') return saved
-  } catch {
-    // Ignore storage errors in restricted environments
-  }
-  return 'explorer'
 }
 
 function loadCompletedStages() {
@@ -51,7 +41,6 @@ function loadInitialSoundEnabled() {
 }
 
 export function LearningProvider({ children }) {
-  const [mode, setModeState] = useState(loadInitialMode)
   const [completedStages, setCompletedStages] = useState(loadCompletedStages)
   const [currentRoute, setCurrentRoute] = useState(parseHashRoute)
   const [soundEnabled, setSoundEnabledState] = useState(() => {
@@ -59,6 +48,14 @@ export function LearningProvider({ children }) {
     syncSoundEnabled(initial)
     return initial
   })
+
+  useEffect(() => {
+    try {
+      window.localStorage.removeItem(LEGACY_MODE_STORAGE_KEY)
+    } catch {
+      // Ignore storage errors
+    }
+  }, [])
 
   useEffect(() => {
     syncSoundEnabled(soundEnabled)
@@ -70,28 +67,6 @@ export function LearningProvider({ children }) {
     }
     window.addEventListener('hashchange', handleHashChange)
     return () => window.removeEventListener('hashchange', handleHashChange)
-  }, [])
-
-  const setMode = useCallback((nextMode) => {
-    const valid = nextMode === 'deep-dive' ? 'deep-dive' : 'explorer'
-    setModeState(valid)
-    try {
-      window.localStorage.setItem(MODE_STORAGE_KEY, valid)
-    } catch {
-      // Ignore storage errors
-    }
-  }, [])
-
-  const toggleMode = useCallback(() => {
-    setModeState((prev) => {
-      const next = prev === 'explorer' ? 'deep-dive' : 'explorer'
-      try {
-        window.localStorage.setItem(MODE_STORAGE_KEY, next)
-      } catch {
-        // Ignore storage errors
-      }
-      return next
-    })
   }, [])
 
   const markStageComplete = useCallback((id) => {
@@ -177,11 +152,6 @@ export function LearningProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      mode,
-      isDeepDive: mode === 'deep-dive',
-      isExplorer: mode === 'explorer',
-      setMode,
-      toggleMode,
       completedStages,
       markStageComplete,
       unmarkStageComplete,
@@ -194,9 +164,6 @@ export function LearningProvider({ children }) {
       toggleSound,
     }),
     [
-      mode,
-      setMode,
-      toggleMode,
       completedStages,
       markStageComplete,
       unmarkStageComplete,

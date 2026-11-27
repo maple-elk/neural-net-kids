@@ -335,25 +335,6 @@
   margin-bottom: 4px;
 }
 
-.milestone-deep-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  padding: 6px 12px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--mode-deep-border);
-  background: var(--mode-deep-bg);
-  color: #3730a3;
-  font-size: 0.8rem;
-  font-weight: 700;
-  transition: background-color 0.14s ease;
-}
-
-.milestone-deep-toggle:hover {
-  background: #c7d2fe;
-}
-
 .milestone-funfact {
   display: flex;
   align-items: flex-start;

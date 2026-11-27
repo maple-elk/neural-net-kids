@@ -167,7 +167,6 @@ export const KERNELS = {
     kidName: 'Up-Down Wall Finder',
     emoji: '🧱',
     description: 'Lights up wherever dark pixels meet bright pixels side-by-side!',
-    deepDive: 'Horizontal Sobel gradient operator approximating dI/dx.',
     weights: [
       [-1, 0, 1],
       [-2, 0, 2],
@@ -180,7 +179,6 @@ export const KERNELS = {
     kidName: 'Flat Floor Finder',
     emoji: '➖',
     description: 'Lights up wherever dark pixels sit above or below bright pixels!',
-    deepDive: 'Vertical Sobel gradient operator approximating dI/dy.',
     weights: [
       [-1, -2, -1],
       [0, 0, 0],
@@ -193,7 +191,6 @@ export const KERNELS = {
     kidName: 'Corner Spotter',
     emoji: '📐',
     description: 'Ignores flat straight lines and fires right where shapes turn a corner!',
-    deepDive: 'Cross-derivative filter approximating d²I/(dx·dy); zero on pure horizontal/vertical edges.',
     weights: [
       [1, 0, -1],
       [0, 0, 0],
@@ -206,7 +203,6 @@ export const KERNELS = {
     kidName: 'Super Crisp Booster',
     emoji: '✨',
     description: 'Boosts the center pixel while subtracting its neighbors to make edges pop!',
-    deepDive: 'Unsharp-style 3x3 sharpening kernel (identity + discrete Laplacian).',
     weights: [
       [0, -1, 0],
       [-1, 5, -1],
@@ -219,7 +215,6 @@ export const KERNELS = {
     kidName: 'Soft Smudger',
     emoji: '☁️',
     description: 'Averages every pixel with its 8 neighbors to make the image soft and smooth.',
-    deepDive: 'Normalized 3x3 box filter (uniform low-pass averaging kernel, weights = 1/9).',
     weights: [
       [1 / 9, 1 / 9, 1 / 9],
       [1 / 9, 1 / 9, 1 / 9],

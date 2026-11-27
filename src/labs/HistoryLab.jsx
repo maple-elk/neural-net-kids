@@ -279,7 +279,7 @@ export default function HistoryLab() {
                   </div>
 
                   <MathDrawer title="Technical Note">
-                    <p>{milestone.deepDive}</p>
+                    <p>{milestone.technicalNote}</p>
                   </MathDrawer>
 
                   {relatedChapter && (

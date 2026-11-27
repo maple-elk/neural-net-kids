@@ -24,14 +24,12 @@ export const STAGES = [
     ageBadge: 'Start Here',
     color: '#f59e0b',
     icon: 'Zap',
-    kidSummary:
+    summary:
       'Computers only understand numbers. See how one simple math cell collects clues, dials their importance up or down, and decides whether to fire.',
-    deepDiveSummary:
-      'Computes a weighted sum z = Σ(wᵢxᵢ) + b with a threshold switch, and wires real logic gates like AND and OR.',
     keyConcepts: [
-      { term: 'Input', kidDef: 'A clue turned into a number (0 or 1).' },
-      { term: 'Weight', kidDef: 'An importance dial — positive votes YES, negative warns NO.' },
-      { term: 'Bias', kidDef: 'The neuron’s starting mood before seeing clues.' },
+      { term: 'Input', definition: 'A clue turned into a number (0 or 1).' },
+      { term: 'Weight', definition: 'An importance dial — positive votes YES, negative warns NO.' },
+      { term: 'Bias', definition: 'The neuron’s starting mood before seeing clues.' },
     ],
   },
   {
@@ -45,14 +43,12 @@ export const STAGES = [
     ageBadge: 'Core Idea',
     color: '#ef4444',
     icon: 'TrendingDown',
-    kidSummary:
+    summary:
       'Tuning weights by hand is slow! Discover Loss Mountain, experiment with stride size (Learning Rate), and watch a single neuron teach itself to draw a straight fence.',
-    deepDiveSummary:
-      'Visualizes gradient descent on a 2D loss surface and trains a single linear classifier on a 2D coordinate map.',
     keyConcepts: [
-      { term: 'Loss', kidDef: 'A mistake scoreboard — lower is better.' },
-      { term: 'Gradient Descent', kidDef: 'Stepping downhill on Loss Mountain.' },
-      { term: 'Learning Rate', kidDef: 'Stride size — too tiny is slow, too huge overshoots.' },
+      { term: 'Loss', definition: 'A mistake scoreboard — lower is better.' },
+      { term: 'Gradient Descent', definition: 'Stepping downhill on Loss Mountain.' },
+      { term: 'Learning Rate', definition: 'Stride size — too tiny is slow, too huge overshoots.' },
     ],
   },
   {
@@ -66,14 +62,12 @@ export const STAGES = [
     ageBadge: 'Breakthrough',
     color: '#6366f1',
     icon: 'Network',
-    kidSummary:
+    summary:
       'One neuron gets stuck on a checkerboard puzzle (XOR). Add a hidden team of helper neurons to bend the boundary, then trace how error notes flow backward to train every weight.',
-    deepDiveSummary:
-      'Demonstrates linear underfitting on XOR, non-linear hidden-layer warping, and reverse-mode backpropagation step by step.',
     keyConcepts: [
-      { term: 'XOR Trap', kidDef: 'A checkerboard puzzle no single straight line can solve.' },
-      { term: 'Hidden Layer', kidDef: 'A middle team of neurons that bend boundaries.' },
-      { term: 'Backpropagation', kidDef: 'Passing blame backward so hidden weights improve.' },
+      { term: 'XOR Trap', definition: 'A checkerboard puzzle no single straight line can solve.' },
+      { term: 'Hidden Layer', definition: 'A middle team of neurons that bend boundaries.' },
+      { term: 'Backpropagation', definition: 'Passing blame backward so hidden weights improve.' },
     ],
   },
   {
@@ -87,14 +81,12 @@ export const STAGES = [
     ageBadge: 'Vision',
     color: '#10b981',
     icon: 'Eye',
-    kidSummary:
+    summary:
       'To an AI, a photo is just a grid of brightness numbers. Slide a 3×3 magnifying glass to spot edges, then draw a digit and watch pooling + feature neurons guess what you drew.',
-    deepDiveSummary:
-      'Interactive 3×3 spatial convolution filters, 4×4 average pooling, live 3-layer digit recognizer, and optional local COCO-SSD camera vision.',
     keyConcepts: [
-      { term: 'Convolution Filter', kidDef: 'A tiny 3×3 lens scanning for edges and corners.' },
-      { term: 'Pooling', kidDef: 'Shrinking a pixel grid into a compact summary.' },
-      { term: 'Softmax', kidDef: 'Turning raw scores into clean percentages.' },
+      { term: 'Convolution Filter', definition: 'A tiny 3×3 lens scanning for edges and corners.' },
+      { term: 'Pooling', definition: 'Shrinking a pixel grid into a compact summary.' },
+      { term: 'Softmax', definition: 'Turning raw scores into clean percentages.' },
     ],
   },
   {
@@ -108,14 +100,12 @@ export const STAGES = [
     ageBadge: 'Language',
     color: '#8b5cf6',
     icon: 'Compass',
-    kidSummary:
+    summary:
       'AI reads by snapping text into reusable Lego pieces called tokens, then placing similar words into the same neighborhood on a Meaning Map — where King − Man + Woman = Queen!',
-    deepDiveSummary:
-      'Subword tokenization with integer IDs and 2D vector embeddings with linear semantic analogies.',
     keyConcepts: [
-      { term: 'Token', kidDef: 'A word or word-piece stamped with an ID number.' },
-      { term: 'Embedding', kidDef: 'A word’s GPS coordinates on a Meaning Map.' },
-      { term: 'Word Math', kidDef: 'Sliding meaning arrows between related words.' },
+      { term: 'Token', definition: 'A word or word-piece stamped with an ID number.' },
+      { term: 'Embedding', definition: 'A word’s GPS coordinates on a Meaning Map.' },
+      { term: 'Word Math', definition: 'Sliding meaning arrows between related words.' },
     ],
   },
   {
@@ -129,14 +119,12 @@ export const STAGES = [
     ageBadge: 'Transformers',
     color: '#ec4899',
     icon: 'Sparkles',
-    kidSummary:
+    summary:
       'Words are chameleons whose meaning changes with context. Flip one word in a sentence and watch Self-Attention redirect its spotlight to completely change what a word means.',
-    deepDiveSummary:
-      'Interactive Winograd & homonym self-attention arcs, Before/After context blending, and Q/K/V scaled dot-product attention.',
     keyConcepts: [
-      { term: 'Self-Attention', kidDef: 'A spotlight letting every word borrow clues from neighbors.' },
-      { term: 'Context', kidDef: 'Surrounding words that clarify ambiguous meanings.' },
-      { term: 'Multi-Head', kidDef: 'Multiple spotlights tracking who, size, and action at once.' },
+      { term: 'Self-Attention', definition: 'A spotlight letting every word borrow clues from neighbors.' },
+      { term: 'Context', definition: 'Surrounding words that clarify ambiguous meanings.' },
+      { term: 'Multi-Head', definition: 'Multiple spotlights tracking who, size, and action at once.' },
     ],
   },
   {
@@ -150,14 +138,12 @@ export const STAGES = [
     ageBadge: 'Build It',
     color: '#0ea5e9',
     icon: 'MessageSquare',
-    kidSummary:
+    summary:
       'Even giant chatbots write one token at a time! Train a Mini-LLM on a story in milliseconds, roll the weighted dice, and slide Temperature from Predictable Robot to Wild Chaos.',
-    deepDiveSummary:
-      'Autoregressive next-token generation, temperature-scaled sampling distributions, and how pretraining + SFT + RLHF scale to frontier LLMs.',
     keyConcepts: [
-      { term: 'Autoregressive', kidDef: 'Guessing one word, adding it, and repeating.' },
-      { term: 'Temperature', kidDef: 'Creativity thermostat from safe robot to wild storyteller.' },
-      { term: 'RLHF', kidDef: 'Polishing an AI’s manners with human feedback.' },
+      { term: 'Autoregressive', definition: 'Guessing one word, adding it, and repeating.' },
+      { term: 'Temperature', definition: 'Creativity thermostat from safe robot to wild storyteller.' },
+      { term: 'RLHF', definition: 'Polishing an AI’s manners with human feedback.' },
     ],
   },
   {
@@ -171,14 +157,12 @@ export const STAGES = [
     ageBadge: 'Finale',
     color: '#f97316',
     icon: 'Clock',
-    kidSummary:
+    summary:
       'Zoom out to compare the 4 classic AI brain designs (MLP, CNN, RNN, Transformer), travel the 1943–2026 timeline, and take the final quiz!',
-    deepDiveSummary:
-      'Architecture taxonomy (MLP, CNN, RNN, Transformer) paired with the 1943–2026 historical lineage and capstone quiz.',
     keyConcepts: [
-      { term: 'MLP / CNN / RNN / Transformer', kidDef: 'The four specialist brain designs of modern AI.' },
-      { term: 'AI Winter', kidDef: 'When early AI hit a wall until a new math idea broke through.' },
-      { term: 'Scaling Laws', kidDef: 'More data + more neurons = surprisingly smarter models.' },
+      { term: 'MLP / CNN / RNN / Transformer', definition: 'The four specialist brain designs of modern AI.' },
+      { term: 'AI Winter', definition: 'When early AI hit a wall until a new math idea broke through.' },
+      { term: 'Scaling Laws', definition: 'More data + more neurons = surprisingly smarter models.' },
     ],
   },
 ]

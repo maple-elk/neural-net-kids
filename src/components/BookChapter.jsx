@@ -14,8 +14,7 @@ import { getStageById, STAGES } from '../utils/pathwayLoader.js'
 import { playClick, playSuccess } from '../utils/sound.js'
 
 /**
- * Collapsible inline math / under-the-hood drawer.
- * Replaces the global Explorer/Deep-Dive mode toggle so every reader
+ * Collapsible inline math / under-the-hood drawer so every reader
  * gets one clear explanation and can optionally peek at the formulas.
  */
 export function MathDrawer({ title = 'Peek at the Math', children }) {
