@@ -9,6 +9,7 @@
     "build": "vite build",
     "test": "vitest run",
     "lint": "oxlint",
+    "check": "vitest run && oxlint && vite build",
     "preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"

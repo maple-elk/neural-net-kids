@@ -37,6 +37,7 @@ npm run dev
 | `npm run dev` | Start Vite development server with HMR |
 | `npm run test` | Run Vitest engine unit tests (`vitest run`) |
 | `npm run lint` | Lint source files with `oxlint` |
+| `npm run check` | Run full inner-loop check (`vitest run && oxlint && vite build`) |
 | `npm run build` | Build production bundle into `dist/` (with `base: './'`) |
 | `npm run preview` | Preview the production build locally |
 | `npm run deploy` | Build (`predeploy`) and publish `dist/` to GitHub Pages via `gh-pages` |
